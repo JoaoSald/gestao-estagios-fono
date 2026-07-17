@@ -1,0 +1,10 @@
+{% import "_macros.html" as ui %}
+{% call ui.modal_form('Indisponibilidade — ' ~ local.campo, '/ui/locais/' ~ local.id ~ '/indisponibilidade',
+       'post', erro, target='#tbody-locais') %}
+  <p class="muted" style="margin:0 0 .8rem">Período em que o local fica indisponível (só na operação — reverte sozinho ao fim; as sessões futuras no período voltam à fila).</p>
+  {{ ui.campo('Motivo (opcional)', 'motivo', '') }}
+  <div class="grid g-2">
+    {{ ui.campo('Início', 'data_inicio', '', tipo='date', required=true) }}
+    {{ ui.campo('Fim', 'data_fim', '', tipo='date', required=true) }}
+  </div>
+{% endcall %}

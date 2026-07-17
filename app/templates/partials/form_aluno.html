@@ -1,0 +1,40 @@
+{% import "_macros.html" as ui %}
+{% set edit = obj is not none %}
+{% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' aluno',
+       '/ui/alunos/' ~ obj.id if edit else '/ui/alunos',
+       'put' if edit else 'post', erro, target='#alunos-conteudo', estatico=true) %}
+  <div class="grid g-2">
+    {{ ui.campo('Nome', 'nome', obj.nome if edit else '', required=true) }}
+    {{ ui.campo('Matrícula', 'matricula', obj.matricula if edit else '', required=true) }}
+  </div>
+  <div class="grid g-2">
+    {{ ui.campo('E-mail (opcional)', 'email', (obj.email if edit else ''), tipo='email') }}
+    <div class="field"><label>Semestre</label>
+      <input class="input" type="number" name="semestre" min="1" value="{{ semestre_default }}"
+             hx-get="/ui/alunos/matriculas-check" hx-trigger="change" hx-target="#matriculas-check"
+             hx-swap="innerHTML" hx-include="[name='semestre']"{% if edit %} hx-vals='{"aluno_id": {{ obj.id }}}'{% endif %}>
+      <div class="hint">7º = mini-ciclo (Audiologia I) · 9º/10º = demais estágios</div></div>
+  </div>
+  {# Prioridade só no bootstrap (montagem manual). Na operação some; preserva o valor
+     atual de quem já era prioritário para o Salvar não zerar. #}
+  {% if is_bootstrap %}
+  {{ ui.campo_check('Prioridade (posicionar à mão na montagem)', 'prioridade', obj.prioridade if edit else false) }}
+  {% elif edit and obj.prioridade %}<input type="hidden" name="prioridade" value="on">{% endif %}
+
+  <div class="field"><label>Matrículas iniciais por área</label>
+    <p class="hint">Marque só os estágios que este aluno vai fazer NESTE ciclo. As demais não entram (não viram pendência) — se faltar, é só matricular depois. As áreas fora da fase do semestre ficam desabilitadas.</p>
+    <div id="matriculas-check">{% include 'partials/alunos_matriculas_check.html' %}</div>
+  </div>
+
+  <div class="field"><label>Disponibilidade por local (restrições)</label>
+    <p class="hint">Por padrão o aluno pode ir a <b>todos</b> os locais. <b>Desmarque</b> os que ele NÃO pode frequentar (condição especial). Deixe ao menos um local por área matriculada.</p>
+    {% for g in restr_areas %}
+      <div style="margin:.5rem 0 .3rem">{{ ui.area_pill(g.label, g.cor) }}</div>
+      <div class="checks" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem">
+        {% for l in g.locais %}
+        <label class="check {{ 'on' if l.disponivel else '' }}"><input type="checkbox" name="disp" value="{{ l.id }}" {% if l.disponivel %}checked{% endif %}><span>{{ l.campo }} · {{ l.dia }} · {{ l.turno }}</span></label>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+{% endcall %}

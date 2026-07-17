@@ -1,0 +1,33 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Mover {{ d.aluno_nome }} para…</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    <p class="muted" style="margin-bottom:.9rem">{{ descricao }} O sistema só move se couber sem conflito de dia/turno, sem estourar 30h e com vaga — senão explica o motivo e sugere a alternativa mais cedo possível.</p>
+
+    {% if motivos %}
+    <div class="field-err" style="margin-bottom:.9rem;padding:.7rem .9rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">
+      <div style="display:flex;align-items:center;gap:.4rem;font-weight:700">{{ ui.icon('alert') }} Não deu para mover</div>
+      <ul style="margin:.4rem 0 0 1rem">{% for m in motivos %}<li>{{ m }}</li>{% endfor %}</ul>
+      {% if sugestao %}
+      <button class="btn btn-primary btn-sm" style="margin-top:.6rem"
+        hx-post="/ui/estagios/mover" hx-target="#estagios-conteudo" hx-swap="innerHTML"
+        hx-vals='{"aluno_id": {{ d.aluno_id }}, "grupo_origem": {{ d.grupo_origem }}, "grupo_destino": {{ sugestao.grupo_id }}, "vista": "{{ vista }}", "local": "{{ ctx_local or '' }}", "area": "{{ ctx_area or '' }}"}'>
+        {{ ui.icon('arrowRight') }} Mover para a alternativa que cabe</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="flex flex-wrap" style="gap:.5rem">
+      {% for t in d.destinos %}
+        <button class="btn btn-secondary" style="text-align:left;flex-direction:column;align-items:flex-start;gap:.15rem;{{ 'opacity:.6' if not t.vaga else '' }}"
+          hx-post="/ui/estagios/mover" hx-target="#estagios-conteudo" hx-swap="innerHTML"
+          hx-vals='{"aluno_id": {{ d.aluno_id }}, "grupo_origem": {{ d.grupo_origem }}, "grupo_destino": {{ t.grupo_id }}, "vista": "{{ vista }}", "local": "{{ ctx_local or '' }}", "area": "{{ ctx_area or '' }}"}'>
+          <span style="font-weight:700">{{ t.rotulo }}{% if not t.vaga %} · cheio{% endif %}</span>
+          <span class="dim" style="font-size:.78rem">{{ t.sub }}</span>
+        </button>
+      {% else %}<span class="dim">Nenhum destino disponível nesta área.</span>{% endfor %}
+    </div>
+  </div>
+  <div class="modal-foot"><button type="button" class="btn btn-secondary" data-close>Fechar</button></div>
+</div></div>

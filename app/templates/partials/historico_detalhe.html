@@ -1,0 +1,23 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal modal-wide" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>{{ h.aluno_nome }} · {{ h.ano }}</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    <div class="flex between mb" style="display:flex;justify-content:space-between;margin-bottom:.8rem">
+      <span class="dim">Matrícula {{ h.matricula or '—' }}</span>
+      {% if h.situacao.value == 'ciclo_completo' %}<span class="badge b-concluida"><span class="dt"></span>ciclo completo</span>
+      {% else %}<span class="badge b-risco"><span class="dt"></span>pendente</span>{% endif %}
+    </div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Área</th><th>Encontros</th><th>Progresso</th><th>Conclusão</th></tr></thead>
+      <tbody>
+      {% for a in (h.areas or []) %}
+        {% set pct = ((a.feitos / a.total * 100)|round|int) if a.total else 0 %}
+        <tr><td>{{ a.nome }}</td><td>{{ a.feitos }} / {{ a.total }}</td>
+          <td style="min-width:90px">{{ ui.pbar(pct, 'var(--st-concluida)' if a.data_conclusao else 'var(--st-risco)') }}</td>
+          <td>{% if a.data_conclusao %}{{ a.data_conclusao }}{% else %}<span class="dim">não concluída</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+  </div>
+  <div class="modal-foot"><button type="button" class="btn btn-primary" data-close>Fechar</button></div>
+</div></div>

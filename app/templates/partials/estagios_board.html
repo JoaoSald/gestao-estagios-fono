@@ -1,0 +1,68 @@
+{% import "_macros.html" as ui %}
+
+{% if relatorio %}
+<div class="card" style="margin-bottom:1rem;border-color:var(--primary)"><div class="card-body">
+  <b>{{ ui.icon('checkCircle') }} Escala gerada</b>
+  <div class="flex flex-wrap" style="gap:.5rem;margin-top:.6rem">
+    {{ ui.pill_estado('em_andamento', relatorio.alocados ~ ' alocações') }}
+    {{ ui.pill_estado('concluida', relatorio.alunos_ok ~ ' alunos completos') }}
+    {{ ui.pill_estado('aguardando', relatorio.alunos_parcial ~ ' parciais') }}
+    {{ ui.pill_estado('aguardando', relatorio.aguardando|length ~ ' aguardando') }}
+    {{ ui.pill_estado('em_risco', relatorio.em_risco ~ ' em risco') }}
+  </div>
+  {% if relatorio.avisos %}<ul class="dim" style="margin:.6rem 0 0;font-size:.8rem">{% for a in relatorio.avisos %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+</div></div>
+{% endif %}
+
+{% if sem_ciclo %}
+  <div class="empty" style="padding:2rem"><span class="dim">Nenhum ciclo ativo.</span></div>
+{% else %}
+
+{% for area in areas %}
+  <h3 style="margin:1.2rem 0 .7rem">{{ area.nome }}</h3>
+  <div class="grid g-3">
+    {% for g in area.grupos %}
+    <div class="card"><div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
+        <b>{{ g.local_campo }}</b>
+        <span class="badge {{ 'b-concluida' if g.cheia else 'b-risco' if g.fraca else 'b-neutral' }}">{{ g.ocupacao }}/{{ g.cap }}</span>
+      </div>
+      <div class="dim" style="font-size:.78rem;margin:.25rem 0 .6rem">
+        Onda {{ g.onda }} · {{ g.data_inicio.strftime('%d/%m') }}–{{ g.data_fim.strftime('%d/%m/%Y') }}</div>
+      {% for m in g.membros %}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.4rem;padding:.25rem 0;border-top:1px solid var(--border)">
+        <span>{{ '📌 ' if m.fixado else '' }}{{ m.nome }}{% if m.aviso %} <span class="dim" title="{{ m.aviso }}">⚠</span>{% endif %}</span>
+        <span class="row-actions">
+          <button class="icon-btn" title="Mover" hx-get="/ui/escala/mover/{{ m.aluno_id }}/{{ g.id }}"
+                  hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }}</button>
+          <button class="icon-btn" title="Remover (volta à fila)" hx-post="/ui/escala/remover"
+                  hx-vals='{"aluno_id": {{ m.aluno_id }}, "grupo_id": {{ g.id }}}'
+                  hx-target="#board" hx-swap="innerHTML"
+                  hx-confirm="Remover {{ m.nome }} desta caixa? Volta para a fila.">{{ ui.icon('trash') }}</button>
+        </span>
+      </div>
+      {% endfor %}
+    </div></div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty" style="padding:2rem"><span class="dim">Nenhuma caixa ocupada. Clique em “Gerar escala”.</span></div>
+{% endfor %}
+
+{% if fila %}
+  <h3 style="margin:1.4rem 0 .7rem">Aguardando vaga · {{ fila|length }}</h3>
+  <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Aluno</th><th>Área</th><th></th></tr></thead>
+    <tbody>
+    {% for f in fila %}
+      <tr><td>{{ f.nome }}</td><td>{{ f.area_nome }}</td>
+        <td class="row-actions">
+          <button class="btn btn-ghost btn-sm" hx-get="/ui/escala/adicionar/{{ f.aluno_id }}/{{ f.area_id }}"
+                  hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Alocar</button>
+        </td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+{% endif %}
+
+{% endif %}

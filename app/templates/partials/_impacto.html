@@ -1,0 +1,44 @@
+{# Preview do impacto do remanejo (§7.3) — dry-run, nada aplicado ainda. #}
+{% if resumo %}
+  {% if resumo.novas_caixas %}
+  <p class="muted">{{ resumo.novas_caixas }} caixa(s) nova(s) do molde materializada(s).</p>
+  {% endif %}
+
+  {% for l in resumo.locais %}
+  <div class="card" style="margin-top:.5rem"><div class="card-body">
+    <b>{{ l.campo }}</b>
+    {% if l.sessoes_movidas %}
+    <div class="muted">{{ l.sessoes_movidas }} sessão(ões) empurrada(s) em {{ l.caixas_reflowadas }} caixa(s).</div>
+    {% endif %}
+    {% for c in l.conclusoes %}
+    <div class="muted">Conclusão de <b>{{ c.aluno }}</b>:
+      {{ c.de.strftime('%d/%m/%Y') if c.de else '—' }} → <b>{{ c.para.strftime('%d/%m/%Y') }}</b></div>
+    {% endfor %}
+    {% for d in l.descartes %}
+    <div class="muted" style="color:#c0392b">Caixa descartada — <b>{{ d.aluno }}</b> volta à fila
+      ({{ d.feitos }}/{{ d.total }} encontros preservados).</div>
+    {% endfor %}
+  </div></div>
+  {% endfor %}
+
+  {% for p in resumo.colocados %}
+  <div class="muted">➕ <b>{{ p.aluno }}</b> entra em {{ p.local }} ({{ p.data_inicio.strftime('%d/%m/%Y') }}).</div>
+  {% endfor %}
+  {% for a in resumo.aguardando %}
+  <div class="muted" style="color:#c0392b">⏳ <b>{{ a.aluno }}</b> — {{ a.motivo }}.</div>
+  {% endfor %}
+
+  {% if not resumo.tem_mudanca() %}
+  <div class="muted">Sem efeito prático a aplicar (as caixas já estão coerentes).</div>
+  {% endif %}
+{% endif %}
+
+{% if fila %}
+<div class="card" style="margin-top:.6rem"><div class="card-head"><h3>Mudanças que geraram a revisão</h3></div>
+<div class="card-body"><div class="timeline">
+  {% for g in fila %}
+  <div class="tl-item"><span class="tl-dot"></span><div class="txt">{{ g.texto }}</div>
+    <div class="when">{{ g.quando.strftime('%d/%m/%Y') }}</div></div>
+  {% endfor %}
+</div></div></div>
+{% endif %}

@@ -1,0 +1,42 @@
+{% import "_macros.html" as ui %}
+{% for titulo, sub, rows, sem_novo in [
+   ('7º semestre — mini-ciclo', 'Cursam apenas o estágio de Audiologia I.', fase7, 7),
+   ('9º/10º semestre — demais estágios', 'Começam com Audiologia I concluída (pré-requisito).', fase910, 9)] %}
+  <div data-lista-wrap style="margin-bottom:1.4rem">
+    <div class="flex between" style="display:flex;justify-content:space-between;align-items:center;margin:.6rem 0 .55rem;gap:.6rem">
+      <div style="display:flex;align-items:center;gap:.55rem">
+        <b>{{ titulo }}</b>
+        {# item 10: contador em destaque #}
+        <span class="badge b-andamento" style="font-size:.9rem;padding:.15rem .6rem"><span class="dt"></span>{{ rows|length }} aluno(s)</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" hx-get="/ui/alunos/form?semestre={{ sem_novo }}" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Novo aluno{{ ' do mini-ciclo' if sem_novo == 7 else '' }}</button>
+    </div>
+    <div class="hint" style="margin:-.3rem 0 .5rem">{{ sub }}</div>
+
+    {# item 13: busca por nome em tempo real #}
+    {{ ui.busca_local('Buscar aluno por nome…') }}
+
+    {# item 14: até ~10 alunos visíveis; acima disso, rolagem interna (a lista rola, não a página) #}
+    <div class="tbl-wrap scroll-y" style="margin-top:.5rem;max-height:26rem;overflow-y:auto"><table class="tbl">
+      <thead><tr><th>Aluno</th><th>Matrícula</th><th>E-mail</th><th>Sem.</th><th>Matrículas</th><th>Prioridade</th><th></th></tr></thead>
+      <tbody>
+      {% for a in rows %}
+        <tr data-nome="{{ a.nome|lower }}">
+          <td><a href="/ui/alunos/{{ a.id }}" style="color:var(--primary);font-weight:600">{{ a.nome }}</a></td>
+          <td>{{ a.matricula }}</td><td>{{ a.email or '—' }}</td><td>{{ a.semestre or '—' }}</td>
+          <td>{{ a.em_and }} em andamento{% if a.conc %} · <span class="dim">{{ a.conc }} concl.</span>{% endif %}</td>
+          <td><label class="check {{ 'on' if a.prioridade else '' }}" style="margin:0;padding:.15rem .5rem">
+            <input type="checkbox" {% if a.prioridade %}checked{% endif %} hx-post="/ui/alunos/{{ a.id }}/prioridade"
+                   hx-target="#alunos-conteudo" hx-swap="innerHTML" hx-trigger="change"><span>prioridade</span></label></td>
+          <td class="row-actions">
+            <button class="icon-btn" title="Editar" hx-get="/ui/alunos/{{ a.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+            <button class="icon-btn" title="Remover" hx-delete="/ui/alunos/{{ a.id }}" hx-target="#alunos-conteudo" hx-swap="innerHTML" hx-confirm="Remover aluno?">{{ ui.icon('trash') }}</button>
+          </td>
+        </tr>
+      {% else %}
+        <tr data-nofilter><td colspan="7"><div class="empty" style="padding:1rem"><span class="dim">Nenhum aluno nesta fase.</span></div></td></tr>
+      {% endfor %}
+        <tr data-vazio-busca style="display:none"><td colspan="7"><div class="empty" style="padding:1rem"><span class="dim">Nenhum aluno encontrado para a busca.</span></div></td></tr>
+      </tbody></table></div>
+  </div>
+{% endfor %}

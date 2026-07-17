@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+{% set SUB = {'aluno':'clique numa linha para o calendário do aluno','campo':'calendário de cada cenário: quem vai, quando e até quando','grupos':'grupos (ondas) por local: o atual e os próximos'} %}
+<div class="page-head"><div class="row">
+  <div><h1>Estágios</h1><p>Escala gerada · {{ n_ativas }} alocações · {{ SUB[vista] }}</p></div>
+  {% if escala_desatualizada %}<span class="badge b-risco"><span class="dt"></span>escala desatualizada</span>
+  {% else %}<span class="badge b-concluida"><span class="dt"></span>escala atualizada</span>{% endif %}
+</div></div>
+
+<div id="estagios-conteudo">
+  {% include 'partials/estagios_conteudo.html' %}
+</div>
+{% endblock %}

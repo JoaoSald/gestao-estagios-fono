@@ -1,0 +1,64 @@
+{% import "_macros.html" as ui %}
+{% macro conta(n, cls, titulo) -%}
+{% if n > 0 %}<span class="badge {{ cls }}" title="{{ titulo }}"><span class="dt"></span>{{ n }}</span>{% else %}<span class="dim" style="opacity:.45">0</span>{% endif %}
+{%- endmacro %}
+
+<div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:1rem">
+  <div class="segmented">
+    <button class="{{ 'active' if vista != 'ofertas' else '' }}" hx-get="/ui/alunos/conteudo?vista=matriculados" hx-target="#alunos-conteudo" hx-swap="innerHTML">{{ ui.icon('users') }}Matriculados</button>
+    <button class="{{ 'active' if vista == 'ofertas' else '' }}" hx-get="/ui/alunos/conteudo?vista=ofertas" hx-target="#alunos-conteudo" hx-swap="innerHTML">{{ ui.icon('building') }}Ofertas</button>
+  </div>
+</div>
+
+{% if vista == 'ofertas' %}
+  <p class="dim" style="margin:0 0 .7rem">Fila e vagas derivadas em tempo real (matrícula em andamento sem alocação = aguardando). Clique numa área para ver os alunos e a previsão de início. Vaga livre sem fila → pode matricular manualmente.</p>
+  <div class="tbl-wrap scroll-x scroll-y" style="max-height:60vh"><table class="tbl">
+    <thead><tr><th>Área</th><th>Cap.</th><th>Ocup.</th><th>Livres</th><th>Fila</th><th>Situação</th></tr></thead>
+    <tbody>
+    {% for d in ofertas %}
+      <tr style="cursor:pointer" title="Ver alunos e previsão de início"
+          hx-get="/ui/alunos/oferta-card?area={{ d.area_id }}" hx-target="#modal-root" hx-swap="innerHTML">
+        <td>{{ d.nome }}</td><td>{{ d.cap }}</td><td>{{ d.ocup }}</td>
+        <td>{% if d.livres %}<b>{{ d.livres }}</b>{% else %}0{% endif %}</td><td>{{ d.fila|length }}</td>
+        <td><span class="badge {{ d.sit_cls }}"><span class="dt"></span>{{ d.sit_txt }}</span>
+          {% if d.fila %}<div class="hint" style="margin-top:.3rem">Fila: {% for f in d.fila %}{{ loop.index }}º {{ f.nome }} <span class="dim">(prio {{ f.ordenamento }})</span>{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6"><div class="empty">Nenhuma área com locais.</div></td></tr>{% endfor %}
+    </tbody></table></div>
+
+{% else %}
+  <div data-lista-wrap>
+  <div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:.8rem;align-items:center;justify-content:space-between">
+    <div class="segmented">
+      {% for v, label in [('todos','Todos'),('7','7º semestre'),('9_10','9º/10º semestre')] %}
+      <button class="{{ 'active' if fase == v else '' }}" hx-get="/ui/alunos/conteudo?vista=matriculados&fase={{ v }}" hx-target="#alunos-conteudo" hx-swap="innerHTML">{{ label }}</button>
+      {% endfor %}
+    </div>
+    {# item 18: busca por nome em tempo real #}
+    <div style="min-width:min(280px,100%)">{{ ui.busca_local('Buscar aluno por nome…') }}</div>
+  </div>
+  <div class="tbl-wrap scroll-x scroll-y" style="max-height:60vh"><table class="tbl">
+    <thead><tr><th>Prioridade</th><th>Aluno</th><th>Carga</th>
+      <th style="text-align:center">Em andamento</th><th style="text-align:center">Aguardando</th>
+      <th style="text-align:center">Concluído</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+    {% for a in matriculados %}
+      <tr data-nome="{{ a.nome|lower }}">
+        <td><b>{{ a.ordenamento }}º</b></td>
+        <td><a href="/ui/alunos/{{ a.id }}" style="color:var(--primary);font-weight:700">{{ a.nome }}</a>
+          <div class="dim" style="font-size:.75rem">{{ a.matricula }} · sem. {{ a.semestre }}{% if a.email %} · {{ a.email }}{% endif %}</div></td>
+        <td><div style="min-width:130px">{{ ui.pbar(a.pct_carga, 'var(--brand-400)') }}<div class="hint">{{ a.pct_carga }}% da carga · {{ a.concluidas }}/{{ a.total_areas }} áreas</div></div></td>
+        <td style="text-align:center">{{ conta(a.em_and, 'b-andamento', 'Áreas com vaga alocada') }}{% if a.ch_em_and %}<div class="hint" title="Horas por encontro somadas das áreas em andamento">{{ ('%g'|format(a.ch_em_and))|replace('.', ',') }}h/sem</div>{% endif %}</td>
+        <td style="text-align:center">{{ conta(a.aguardando, 'b-aguardando', 'Áreas na fila') }}</td>
+        <td style="text-align:center">{{ conta(a.concluidas, 'b-concluida', 'Áreas concluídas') }}</td>
+        <td>{% if a.risco %}<span class="badge b-risco"><span class="dt"></span>risco</span>{% else %}<span class="badge b-andamento"><span class="dt"></span>ok</span>{% endif %}</td>
+        <td class="row-actions">
+          <button class="icon-btn" title="Encontros" hx-get="/ui/alunos/{{ a.id }}/encontros" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('calendar') }}</button>
+          <button class="icon-btn" title="Editar" hx-get="/ui/alunos/{{ a.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+          <button class="icon-btn" title="Remover" hx-delete="/ui/alunos/{{ a.id }}" hx-target="#alunos-conteudo" hx-swap="innerHTML" hx-confirm="Remover aluno?">{{ ui.icon('trash') }}</button>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="8"><div class="empty">Nenhum aluno.</div></td></tr>{% endfor %}
+      <tr data-vazio-busca style="display:none"><td colspan="8"><div class="empty">Nenhum aluno encontrado para a busca.</div></td></tr>
+    </tbody></table></div>
+  </div>
+{% endif %}

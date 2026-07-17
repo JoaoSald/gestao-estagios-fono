@@ -1,0 +1,44 @@
+{% import "_macros.html" as ui %}
+{% set edit = obj is not none %}
+{% call ui.modal_form(('Editar' if edit else 'Nova') ~ ' área',
+       '/ui/areas/' ~ obj.id if edit else '/ui/areas',
+       'put' if edit else 'post', erro, target=(target or '#tbody-areas')) %}
+  {{ ui.campo('Nome', 'nome', obj.nome if edit else '', required=true) }}
+  {{ ui.campo('Carga horária total (h)', 'carga_exigida', (obj.carga_exigida if edit else 60), tipo='number', required=true) }}
+  {{ ui.campo_select('Fase', 'fase', fases, (obj.fase.value if edit else '9_10')) }}
+  {{ ui.campo_check('É pré-requisito (Audiologia I) — não bloqueia, só avisa', 'pre_requisito', obj.pre_requisito if edit else false) }}
+
+  <div style="margin-top:.4rem;border-top:1px solid var(--border);padding-top:.8rem">
+    <label style="margin:0;font-weight:700">Sub-áreas <span class="dim" style="font-weight:400">(opcional — obrigatórias, com CH que somam o total{% if edit and subs %} · soma {{ subs_soma }}h de {{ obj.carga_exigida }}h{% endif %})</span></label>
+
+    {% if edit %}
+      <div style="display:flex;flex-direction:column;gap:.3rem;margin:.5rem 0">
+        {% for s in subs %}
+        <div class="flex between" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem 0">
+          <span>↳ {{ s.nome }} <span class="dim">· {{ s.carga_exigida }}h</span></span>
+          <button type="button" class="icon-btn btn-sm" title="Remover sub-área"
+            hx-delete="/ui/areas/{{ s.id }}/subarea" hx-target="#modal-root" hx-swap="innerHTML"
+            hx-confirm="Remover a sub-área {{ s.nome }}?">{{ ui.icon('trash') }}</button>
+        </div>
+        {% else %}<div class="dim" style="padding:.15rem 0">Nenhuma sub-área ainda.</div>
+        {% endfor %}
+      </div>
+
+      {# Cadastro explícito (item 1): preencha nome + CH e confirme no botão ao lado (ou Enter). #}
+      <div class="grid" style="grid-template-columns:1fr 110px auto;gap:.5rem;align-items:end">
+        <div class="field" style="margin:0"><label>Nome da sub-área</label>
+          <input class="input" name="sub_nome" id="sub_nome" placeholder="Ex.: Adulto"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('btn-add-sub').click();}"></div>
+        <div class="field" style="margin:0"><label>CH (h)</label>
+          <input class="input" type="number" name="sub_carga" id="sub_carga" value="20" min="1"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('btn-add-sub').click();}"></div>
+        <button type="button" id="btn-add-sub" class="btn btn-secondary" style="white-space:nowrap"
+          hx-post="/ui/areas/{{ obj.id }}/subareas" hx-include="#sub_nome,#sub_carga"
+          hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('check') }} Salvar sub-área</button>
+      </div>
+    {% else %}
+      <div class="hint" style="margin:.5rem 0 0">Salve a área primeiro; depois, ao editá-la, você adiciona as sub-áreas (ela vira composta automaticamente).</div>
+    {% endif %}
+    <div class="hint" style="margin-top:.5rem">Sem sub-áreas = área simples (cumpre em qualquer local). Com sub-áreas = composta (o aluno cumpre cada uma).</div>
+  </div>
+{% endcall %}

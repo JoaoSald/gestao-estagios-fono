@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block body %}
+<div class="welcome" style="align-items:flex-start;padding-top:2.5rem">
+  <div class="content" style="max-width:1000px;width:100%">
+    <div class="flex between mb" style="display:flex;justify-content:space-between;margin-bottom:1rem">
+      <a class="btn btn-ghost btn-sm" href="/ui/bem-vindo">{{ ui.icon('chevronLeft') }} Voltar</a>
+    </div>
+    <div class="page-head"><div class="row"><div>
+      <h1>Histórico</h1><p>Ciclos encerrados — o passado não muda</p>
+    </div></div></div>
+
+    {% if not anos %}
+      <div class="empty" style="padding:2rem"><span class="dim">Nenhum ciclo anterior ainda.</span></div>
+    {% else %}
+      <div class="tabs" style="display:flex;gap:.3rem;margin-bottom:1rem">
+        {% for a in anos %}
+        <a class="tab {{ 'active' if a == ano_sel else '' }}" href="/ui/historico-anteriores?ano={{ a }}"
+           style="padding:.4rem .8rem;border-radius:8px;cursor:pointer;{{ 'background:var(--surface-2);font-weight:700' if a == ano_sel else 'color:var(--text-2)' }}">{{ a }}</a>
+        {% endfor %}
+      </div>
+      <div class="mb"><span class="badge b-neutral">somente leitura</span></div>
+      <div class="tbl-wrap scroll-x scroll-y" style="max-height:64vh"><table class="tbl">
+        <thead><tr><th>Aluno</th><th>Áreas</th><th>Carga total</th><th>Situação</th><th>Encerramento</th></tr></thead>
+        <tbody>
+        {% for e in egressos %}
+          <tr style="cursor:pointer" hx-get="/ui/historico-anteriores/{{ e.id }}" hx-target="#modal-root" hx-swap="innerHTML">
+            <td><b>{{ e.nome }}</b><div class="hint">{{ e.matricula }}</div></td>
+            <td>{{ e.conc }} / {{ e.total }}</td><td>{{ e.carga }} h</td>
+            <td>{% if e.completo %}<span class="badge b-concluida"><span class="dt"></span>ciclo completo</span>{% else %}<span class="badge b-risco"><span class="dt"></span>pendente</span>{% endif %}</td>
+            <td>{{ e.encerramento.strftime('%d/%m/%Y') if e.encerramento else '—' }}</td></tr>
+        {% else %}<tr><td colspan="5"><div class="empty">Nenhum egresso.</div></td></tr>{% endfor %}
+        </tbody></table></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

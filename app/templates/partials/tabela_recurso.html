@@ -1,0 +1,14 @@
+{% import "_macros.html" as ui %}
+{# Tabela CRUD reutilizável (página de cadastro E passos do bootstrap). Espera:
+   recurso, colunas, itens, del_acao, novo_label. #}
+<div style="display:flex;justify-content:flex-end;margin-bottom:.6rem">
+  <button class="btn btn-primary btn-sm" hx-get="/ui/{{ recurso }}/form" hx-target="#modal-root" hx-swap="innerHTML">
+    {{ ui.icon('plus') }} {{ novo_label }}</button>
+</div>
+{{ ui.search_box('/ui/' ~ recurso ~ '/linhas', '#tbody-' ~ recurso, 'Buscar…') }}
+<div class="tbl-wrap scroll-x scroll-y" style="margin-top:.6rem;max-height:46vh">
+  <table class="tbl">
+    <thead><tr>{% for c in colunas %}<th>{{ c }}</th>{% endfor %}<th></th></tr></thead>
+    <tbody id="tbody-{{ recurso }}">{% include 'partials/linhas.html' %}</tbody>
+  </table>
+</div>

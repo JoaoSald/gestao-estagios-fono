@@ -1,0 +1,63 @@
+{% import "_macros.html" as ui %}
+<div class="flex flex-wrap mb" style="gap:.6rem;align-items:center;margin-bottom:.8rem">
+  <label class="dim" style="font-size:.82rem">Área</label>
+  <select class="input" style="max-width:360px" hx-get="/ui/estagios/conteudo?vista=grupos"
+          hx-target="#estagios-conteudo" hx-swap="innerHTML" name="area">
+    <option value="todas" {{ 'selected' if grupos.area_sel == 'todas' else '' }}>Todas as áreas</option>
+    {% for o in grupos.opcoes %}<option value="{{ o.id }}" {{ 'selected' if grupos.area_sel|string == o.id|string else '' }}>{{ o.nome }}</option>{% endfor %}
+  </select>
+  <a class="btn" href="/ui/estagios/grupos.xlsx" style="margin-left:auto"
+     title="Baixar todos os grupos do ciclo em Excel">{{ ui.icon('download') }} Excel</a>
+  <a class="btn" href="/ui/estagios/grupos.pdf"
+     title="Baixar todos os grupos do ciclo em PDF">{{ ui.icon('download') }} PDF</a>
+</div>
+
+{% for area in grupos.areas %}
+  <div style="margin:.9rem 0 .5rem">{{ ui.area_pill(area.nome, area.cor) }}
+    <span class="dim" style="font-size:.82rem">· {{ area.locais|length }} local(is)</span></div>
+  {% for l in area.locais %}
+    <div class="card" style="margin-bottom:.7rem"><div class="card-head"><div>
+      <b>{{ l.campo }}</b>{% if l.unidade %} <span class="dim">· {{ l.unidade }}</span>{% endif %}
+      <div class="hint">{{ l.dia }} · {{ l.turno }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }} · cap. {{ l.cap }} · {{ l.numero_encontros }} encontros</div>
+    </div></div><div class="card-body" style="padding-top:.5rem">
+      {% for g in l.ondas %}
+        <div style="margin-bottom:.5rem">
+          <div class="flex between" style="align-items:center;margin-bottom:.35rem">
+            <div><b>Grupo {{ g.onda }}</b>
+              <span style="font-size:.78rem;font-weight:700;margin-left:.15rem;color:{{ 'var(--st-concluida)' if g.cheia else 'var(--st-aguardando)' }}">{{ g.ocup }}/{{ g.cap }}</span>
+              {% if g.previsto %}<span class="badge b-aguardando"><span class="dt"></span>na fila</span>{% else %}<span class="badge b-andamento"><span class="dt"></span>em andamento</span>{% endif %}
+            </div>
+            <span class="dim" style="font-size:.8rem">{{ g.data_inicio.strftime('%d/%m/%Y') }} → {{ g.data_fim.strftime('%d/%m/%Y') }}</span>
+          </div>
+          {% for m in g.membros %}
+            <div class="roster-item"><span class="roster-dot" style="background:{{ area.cor or '#64748b' }}"></span>
+              <div style="flex:1;min-width:0"><div class="rn">{{ m.nome }}{% if m.ordenamento %} <span class="dim">· {{ m.ordenamento }}º</span>{% endif %}
+                {% if m.fixado %}<span class="badge b-iniciar" title="Posicionado à mão">{{ ui.icon('user') }} montado</span>{% else %}<span class="dim" style="font-size:.72rem">auto</span>{% endif %}
+                {% if m.aviso %}<span class="badge b-risco" title="{{ m.aviso }}">{{ ui.icon('alert') }} {{ m.aviso }}</span>{% endif %}</div></div>
+              {% if l.ondas|length > 1 %}
+              <div class="row-actions">
+                <button class="icon-btn btn-sm" title="Mover este aluno para outra leva (grupo)"
+                  hx-get="/ui/estagios/mover-onda-modal?aluno={{ m.aluno_id }}&local={{ l.local_id }}&area={{ grupos.area_sel }}"
+                  hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('arrowRight') }}</button>
+              </div>
+              {% endif %}
+            </div>
+          {% else %}<div class="dim">—</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div></div>
+  {% endfor %}
+  {% if area.sem_vaga %}
+  <div class="card" style="margin-bottom:.9rem;border:1px solid #c0392b"><div class="card-head"><div>
+    <b>Sem vagas no ciclo</b> <span class="dim" style="font-size:.82rem">· {{ area.sem_vaga|length }} aluno(s) matriculado(s) sem grupo</span>
+  </div></div><div class="card-body" style="padding-top:.5rem">
+    {% for s in area.sem_vaga %}
+    <div class="roster-item"><span class="roster-dot" style="background:#c0392b"></span>
+      <div style="flex:1;min-width:0"><div class="rn">{{ s.nome }}{% if s.ordenamento %} <span class="dim">· {{ s.ordenamento }}º</span>{% endif %}
+        <span class="badge b-risco" title="Motivo">{{ ui.icon('alert') }} {{ s.motivo }}</span></div></div></div>
+    {% endfor %}
+  </div></div>
+  {% endif %}
+{% else %}
+  <div class="tbl-wrap"><div class="empty" style="padding:2rem"><span class="dim">Nenhum grupo ainda.</span></div></div>
+{% endfor %}

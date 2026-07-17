@@ -1,0 +1,19 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Revisar remanejamento</h3><button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    {% if not pendente %}
+      <div style="display:flex;gap:.6rem;color:var(--st-concluida)">{{ ui.icon('checkCircle') }}
+        <span style="color:var(--text)">Nada a revisar — a escala está em dia.</span></div>
+    {% else %}
+      <p class="muted">Veja o impacto de aplicar as mudanças. Ao confirmar, o sistema reajusta
+        <b>só o afetado</b> (pontual) — as áreas já concluídas não são tocadas.</p>
+      {% include "partials/_impacto.html" %}
+    {% endif %}
+  </div>
+  <div class="modal-foot">
+    <button type="button" class="btn btn-secondary" data-close>Fechar</button>
+    {% if pendente %}<button class="btn btn-primary" hx-post="/ui/remanejar/aplicar" hx-swap="none"
+       hx-confirm="Aplicar o remanejo pontual agora?">{{ ui.icon('shuffle') }} Aplicar remanejo</button>{% endif %}
+  </div>
+</div></div>

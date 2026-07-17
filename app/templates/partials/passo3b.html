@@ -1,0 +1,23 @@
+{% import "_macros.html" as ui %}
+{# ---- Etapa 3b · Locais (slots). Conteúdo re-renderizável (#bs-locais).
+     Ordem (item 6): (1) tabela de locais + cadastro, (2) painel de slots (resumo). ---- #}
+<div class="card"><div class="card-head">
+  <div><h3>Passo 3b · Locais (slots)</h3><div class="card-sub">Cada dia de um campo é um SLOT = 1 grupo que roda EM PARALELO com os outros dias. O nº de encontros vem de CH ÷ horas por encontro.</div></div>
+</div><div class="card-body">
+  {# (1) tabela grande de locais + cadastro #}
+  {% set recurso = locais_tabela.recurso %}{% set colunas = locais_tabela.colunas %}{% set itens = locais_tabela.itens %}
+  {% set del_acao = locais_tabela.del_acao %}{% set novo_label = locais_tabela.novo_label %}
+  {% include 'partials/tabela_recurso.html' %}
+
+  {# (2) painel de slots (resumo da oferta — consequência dos locais) #}
+  <div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border)">
+    <div class="hint" style="font-weight:700;margin-bottom:.5rem">Slots ofertados no ciclo</div>
+    {% if locais_resumo %}
+    <div class="scroll-y" style="max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem">
+      {% for r in locais_resumo %}<div class="hint">{{ ui.area_pill(r.nome, r.cor) }}: <b>{{ r.n }} slot(s)</b> → {{ r.n }} grupo(s) em paralelo · até <b>{{ r.cap }}</b> aluno(s)/leva · ~{{ r.enc }} encontros p/ concluir</div>{% endfor %}
+    </div>
+    {% else %}
+    <div class="dim" style="font-size:.85rem">Nenhum slot ainda — cadastre um local acima.</div>
+    {% endif %}
+  </div>
+</div></div>

@@ -1,0 +1,11 @@
+{% import "_macros.html" as ui %}
+{% set edit = obj is not none %}
+{% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' evento',
+       '/ui/eventos/' ~ obj.id if edit else '/ui/eventos',
+       'put' if edit else 'post', erro, target=(target or '#tbody-eventos')) %}
+  {{ ui.campo('Nome', 'nome', obj.nome if edit else '', required=true) }}
+  {{ ui.campo_select('Tipo', 'tipo', tipos, (obj.tipo.value if edit else 'academico')) }}
+  {{ ui.campo('Início', 'data_inicio', (obj.data_inicio.isoformat() if edit else ''), tipo='date', required=true) }}
+  {{ ui.campo('Fim', 'data_fim', (obj.data_fim.isoformat() if edit else ''), tipo='date') }}
+  {{ ui.campo_check('Bloqueia estágio', 'bloqueia_estagio', obj.bloqueia_estagio if edit else true) }}
+{% endcall %}

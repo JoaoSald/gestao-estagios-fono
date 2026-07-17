@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block body %}
+<div style="position:absolute;top:1.2rem;right:1.2rem;display:flex;gap:.5rem;align-items:center;z-index:5">
+  <a class="btn btn-ghost btn-sm" href="/logout">{{ ui.icon('logout') }} Sair</a>
+</div>
+<div class="welcome"><div class="welcome-card">
+  <div class="hero-logo">{{ ui.icon('logo') }}</div>
+  <h1>Nenhum ciclo ativo</h1>
+  <p>Abra um novo ciclo de estágios para iniciar o cadastro da base, gerar a primeira escala e acompanhar a operação ao longo do ano.</p>
+  <div class="flex" style="justify-content:center;gap:.7rem">
+    <button class="btn btn-primary" hx-get="/ui/ciclos/abrir-modal" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Abrir novo ciclo</button>
+    {% if anos %}<a class="btn btn-secondary" href="/ui/historico-anteriores">{{ ui.icon('history') }} Ver histórico</a>{% endif %}
+  </div>
+
+  {% if anos %}
+  <div class="card mt" style="text-align:left;margin-top:2rem"><div class="card-body">
+    <div class="flex between mb" style="display:flex;justify-content:space-between;margin-bottom:.6rem">
+      <b>Anos anteriores</b>
+      <span class="badge b-neutral">{{ anos|length }} ciclo(s) encerrado(s)</span></div>
+    {% for a in anos %}
+    <div class="flex between" style="display:flex;justify-content:space-between;padding:.6rem 0;border-top:1px solid var(--border)">
+      <div><b>{{ a.ano }}</b> <span class="dim">· {{ a.egressos }} egressos</span></div>
+      <span class="badge b-concluida"><span class="dt"></span>{{ a.completos }} completos</span></div>
+    {% endfor %}
+  </div></div>
+  {% endif %}
+</div></div>
+{% endblock %}

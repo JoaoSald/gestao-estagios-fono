@@ -1,0 +1,21 @@
+{% import "_macros.html" as ui %}
+{% for l in itens %}
+<tr>
+  {% for c in l.cells %}<td>{{ c|safe }}</td>{% endfor %}
+  <td class="row-actions">
+    {% if l.acoes_html %}{{ l.acoes_html|safe }}{% endif %}
+    {% if l.get('editavel', True) %}
+    <button class="icon-btn" title="Editar" hx-get="/ui/{{ recurso }}/{{ l.id }}/form"
+            hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+    {% endif %}
+    {% if del_acao %}
+    <button class="icon-btn" title="{{ 'Remover' if del_acao == 'remover' else 'Desativar' }}"
+            hx-delete="/ui/{{ recurso }}/{{ l.id }}" hx-target="#tbody-{{ recurso }}" hx-swap="innerHTML"
+            hx-confirm="Confirmar {{ 'remoção' if del_acao == 'remover' else 'desativação' }}?">{{ ui.icon('trash') }}</button>
+    {% endif %}
+  </td>
+</tr>
+{% else %}
+<tr data-nofilter><td colspan="{{ colunas|length + 1 }}">
+  <div class="empty" style="padding:1.4rem"><span class="dim">Nenhum registro.</span></div></td></tr>
+{% endfor %}

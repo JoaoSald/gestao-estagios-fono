@@ -1,0 +1,10 @@
+{% import "_macros.html" as ui %}
+<div class="checks" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+  {% for a in areas_check %}
+  <label class="check {{ 'on' if a.marcado else '' }}" style="justify-content:space-between{{ ';opacity:.4;cursor:not-allowed' if a.disabled else '' }}"
+         {% if a.disabled %}title="Não faz parte da fase deste semestre"{% endif %}>
+    <span style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" name="area" value="{{ a.id }}" {% if a.marcado %}checked{% endif %} {% if a.disabled %}disabled{% endif %}>{{ ui.area_pill(a.label, a.cor) }}</span>
+    {% if a.concluida %}<span class="badge b-concluida"><span class="dt"></span>concluída</span>{% endif %}
+  </label>
+  {% endfor %}
+</div>

@@ -1,0 +1,66 @@
+{% import "_macros.html" as ui %}
+<div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:1rem">
+  <div class="segmented">
+    {% for v, ic, label in [('aluno','users','Por aluno'),('campo','building','Por campo'),('grupos','layers','Grupos')] %}
+    <button class="{{ 'active' if vista == v else '' }}"
+            hx-get="/ui/estagios/conteudo?vista={{ v }}" hx-target="#estagios-conteudo" hx-swap="innerHTML"
+            hx-push-url="/ui/estagios?vista={{ v }}">{{ ui.icon(ic) }}{{ label }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% if vista == 'aluno' %}
+  {# Item 6: sanfona por aluno (expande as áreas) + ícone de calendário + áreas sem vaga.
+     Item 3: filtro por semestre + busca por nome + rolagem. #}
+  <div data-lista-wrap>
+  <div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:.8rem;align-items:center;justify-content:space-between">
+    <div class="segmented">
+      {% for v, label in [('todos','Todos'),('7','7º semestre'),('9_10','9º/10º semestre')] %}
+      <button class="{{ 'active' if fase == v else '' }}"
+              hx-get="/ui/estagios/conteudo?vista=aluno&fase={{ v }}" hx-target="#estagios-conteudo" hx-swap="innerHTML">{{ label }}</button>
+      {% endfor %}
+    </div>
+    <div style="min-width:min(280px,100%)">{{ ui.busca_local('Buscar aluno por nome…') }}</div>
+  </div>
+  {% if por_aluno %}
+  <div class="tbl-wrap scroll-y" style="max-height:60vh;overflow-y:auto">
+  {% for al in por_aluno %}
+    <details class="aluno-acc" data-nome="{{ al.aluno_nome|lower }}" style="border-bottom:1px solid var(--border);padding:0 .4rem">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:.5rem;padding:.55rem .3rem">
+        <b>{{ al.aluno_nome }}</b>
+        <span class="dim" style="font-size:.78rem">· {{ al.matricula }} · sem. {{ al.semestre }} · {{ al.areas|length }} área(s)</span>
+        {% if al.aguardando %}<span class="badge b-aguardando"><span class="dt"></span>{{ al.aguardando }} sem vaga</span>{% endif %}
+        <button class="icon-btn btn-sm" style="margin-left:auto" title="Calendário / encontros"
+          hx-get="/ui/alunos/{{ al.aluno_id }}/encontros" hx-target="#modal-root" hx-swap="innerHTML"
+          onclick="event.stopPropagation()">{{ ui.icon('calendar') }}</button>
+      </summary>
+      <table class="tbl" style="margin:0 0 .4rem">
+        <thead><tr><th>Área</th><th>Campo</th><th>Docente</th><th>Horário</th><th>Sessões</th><th>Situação</th></tr></thead>
+        <tbody>
+        {% for r in al.areas %}
+          <tr>
+            <td>{{ ui.area_pill(r.area_nome, r.area_cor) }}</td>
+            <td>{{ r.campo or '—' }}</td>
+            <td>{{ r.docente or '—' }}</td>
+            <td>{% if r.dia %}{{ r.dia }} · {{ r.hora_inicio.strftime('%H:%M') }}–{{ r.hora_fim.strftime('%H:%M') }}{% else %}—{% endif %}</td>
+            <td>{% if r.situacao != 'aguardando' %}{{ r.cumpr }}/{{ r.total }}{% else %}—{% endif %}</td>
+            <td>{% if r.situacao == 'concluida' %}<span class="badge b-concluida"><span class="dt"></span>concluída</span>
+                {% elif r.situacao == 'aguardando' %}<span class="badge b-aguardando"><span class="dt"></span>{{ r.motivo }}</span>
+                {% elif r.situacao == 'em_risco' %}<span class="badge b-risco"><span class="dt"></span>{{ r.conclusao.strftime('%d/%m/%Y') }}</span>
+                {% else %}<span class="badge b-andamento"><span class="dt"></span>{{ r.conclusao.strftime('%d/%m/%Y') }}</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endfor %}
+    <div data-vazio-busca style="display:none"><div class="empty" style="padding:1.5rem"><span class="dim">Nenhum aluno encontrado para a busca.</span></div></div>
+  </div>
+  {% else %}<div class="tbl-wrap"><div class="empty" style="padding:2rem"><span class="dim">Nenhum aluno {{ 'neste semestre' if fase != 'todos' else 'matriculado' }}.</span></div></div>{% endif %}
+  </div>{# /data-lista-wrap #}
+
+{% elif vista == 'campo' %}
+  {% include 'partials/estagios_campo.html' %}
+
+{% else %}
+  {% include 'partials/estagios_grupos.html' %}
+{% endif %}

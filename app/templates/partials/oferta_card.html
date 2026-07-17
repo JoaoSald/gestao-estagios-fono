@@ -1,0 +1,41 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal modal-wide" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Ofertas · {{ d.area_nome }}</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    <div class="stat-row" style="gap:1.4rem;margin-bottom:.8rem">
+      <div class="stat"><div class="v">{{ d.capacidade }}</div><div class="k">Capacidade</div></div>
+      <div class="stat"><div class="v">{{ d.ocupadas }}</div><div class="k">Ocupadas</div></div>
+      <div class="stat"><div class="v">{{ d.vagas_livres }}</div><div class="k">Vagas livres</div></div>
+      <div class="stat"><div class="v">{{ d.fila|length }}</div><div class="k">Na fila</div></div>
+    </div>
+
+    <h4 style="margin:.2rem 0 .4rem">Alocados ({{ d.alocados|length }})</h4>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Prio.</th><th>Aluno</th><th>Local</th><th>Início</th><th>Conclusão</th></tr></thead>
+      <tbody>
+      {% for a in d.alocados %}
+        <tr><td>{{ a.ordenamento }}º</td>
+          <td><b>{{ a.nome }}</b>{% if a.concluida %} <span class="badge b-concluida"><span class="dt"></span>concluída</span>{% endif %}</td>
+          <td>{{ a.campo }}</td>
+          <td>{{ a.data_inicio.strftime('%d/%m/%Y') if a.data_inicio else '—' }}</td>
+          <td>{{ (a.data_conclusao or a.data_fim_prevista).strftime('%d/%m/%Y') if (a.data_conclusao or a.data_fim_prevista) else '—' }}</td></tr>
+      {% else %}<tr><td colspan="5"><div class="empty">Ninguém alocado nesta área.</div></td></tr>{% endfor %}
+      </tbody></table></div>
+
+    <h4 style="margin:1rem 0 .4rem">Fila de espera ({{ d.fila|length }})</h4>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Prio.</th><th>Aluno</th><th>Previsão de início</th></tr></thead>
+      <tbody>
+      {% for f in d.fila %}
+        <tr><td>{{ f.ordenamento }}º</td><td><b>{{ f.nome }}</b></td>
+          <td>{% if f.previsao %}{{ f.previsao.strftime('%d/%m/%Y') }}
+              {% if f.remanejamento %}<span class="badge b-andamento"><span class="dt"></span>remanejamento</span>{% else %}<span class="badge b-iniciar"><span class="dt"></span>vaga livre</span>{% endif %}
+              {% else %}<span class="badge b-risco"><span class="dt"></span>{{ f.motivo or 'sem previsão' }}</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="3"><div class="empty">Ninguém na fila de espera.</div></td></tr>{% endfor %}
+      </tbody></table></div>
+
+    <p class="hint" style="margin-top:.8rem">{{ ui.icon('sparkles') }} Previsão estimada: a fila entra por prioridade à medida que os alocados concluem e liberam vaga. Não é a saída definitiva do motor de escala.</p>
+  </div>
+  <div class="modal-foot"><button type="button" class="btn btn-primary" data-close>Fechar</button></div>
+</div></div>

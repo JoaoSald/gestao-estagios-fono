@@ -1,0 +1,25 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal modal-wide" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Encontros — {{ aluno.nome }}</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    <div class="card" style="margin-bottom:1rem"><div class="card-body" style="padding:1rem 1.1rem">
+      {% for r in resumo %}
+        <div style="margin-bottom:.7rem">
+          <div class="flex between" style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">
+            <b>{{ r.area_nome }}</b><span class="dim">{{ r.feitos }}/{{ r.total }} encontros · {{ r.pct }}%{{ ' · concluída' if r.concluida else '' }}</span>
+          </div>{{ ui.pbar(r.pct, r.cor) }}
+        </div>
+      {% else %}<div class="empty">Sem alocações — gere a escala primeiro.</div>{% endfor %}
+    </div></div>
+    {{ ui.calendario(cal) }}
+    <p class="hint" style="margin-top:.8rem">Visualização. Para registrar falta ou conceder reforço, use <b>Cadastros → Alunos → Encontros</b>.</p>
+  </div>
+  <div class="modal-foot">
+    <a class="btn" href="/ui/alunos/{{ aluno.id }}/calendario.ics"
+       title="Baixar todos os encontros do aluno para importar no Google Agenda, Apple Calendário etc.">{{ ui.icon('download') }} .ics (agenda)</a>
+    <a class="btn" href="/ui/alunos/{{ aluno.id }}/calendario.pdf"
+       title="Baixar o calendário do aluno em PDF">{{ ui.icon('download') }} PDF</a>
+    <button type="button" class="btn btn-primary" data-close>Fechar</button>
+  </div>
+</div></div>

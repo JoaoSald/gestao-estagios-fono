@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set PASSOS = ['Revisão do estado final','Prévia do histórico','Confirmação'] %}
+{% block body %}
+<div class="content" style="max-width:900px;margin:0 auto;padding:1.2rem">
+
+  <div class="flex between mb" style="display:flex;justify-content:space-between;align-items:center">
+    <div><h1 style="font-size:1.25rem;margin:0">Encerrar ciclo {{ ano }}</h1>
+      <p class="muted" style="margin:0">Grava o histórico e zera a operação para o próximo ciclo · irreversível</p></div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="icon-btn" id="btn-tema" title="Alternar tema">{{ ui.icon('sun') }}</button>
+      <a class="btn btn-ghost btn-sm" href="/logout">{{ ui.icon('logout') }} Sair</a>
+    </div>
+  </div>
+
+  <div class="stepper">
+    {% for p in PASSOS %}{% set n = loop.index %}
+      <div class="step {{ 'done' if n < etapa else 'current' if n == etapa else '' }}">
+        <span class="num">{{ '✓' if n < etapa else n }}</span><span>{{ p }}</span></div>
+      {% if not loop.last %}<span class="step-line {{ 'done' if n < etapa else '' }}"></span>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="bootstrap-body">
+    {% if erro %}<div class="field-err" style="margin-bottom:.8rem">{{ erro }}</div>{% endif %}
+
+    {% if etapa == 1 %}
+      <div class="grid g-3" style="margin-bottom:1rem">
+        <div class="kpi"><div class="khead"><span class="kicon">{{ ui.icon('users') }}</span>Alunos</div><div class="kval">{{ total_alunos }}</div></div>
+        <div class="kpi"><div class="khead"><span class="kicon">{{ ui.icon('checkCircle') }}</span>Concluíram tudo</div><div class="kval">{{ completos }}</div></div>
+        <div class="kpi {{ 'warn' if pendentes }}"><div class="khead"><span class="kicon">{{ ui.icon('alert') }}</span>Com pendência</div><div class="kval">{{ pendentes }}</div></div>
+      </div>
+      <div class="card"><div class="card-head"><div><h3>Pendências</h3><div class="card-sub">Serão gravadas como estão — não impedem o encerramento.</div></div></div>
+        <div class="card-body">
+          {% set pend = linhas|selectattr('completo','equalto',false)|list %}
+          {% if pend %}
+          <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Aluno</th><th>Áreas</th><th>Em aberto</th></tr></thead><tbody>
+            {% for r in pend %}<tr><td><b>{{ r.nome }}</b></td><td>{{ r.conc }}/{{ r.total }}</td><td class="muted">{{ r.faltam|join(', ') }}</td></tr>{% endfor %}
+          </tbody></table></div>
+          {% else %}<div style="display:flex;gap:.5rem;color:var(--st-concluida)">{{ ui.icon('checkCircle') }}<span style="color:var(--text)">Todos concluíram suas áreas.</span></div>{% endif %}
+        </div></div>
+      <div class="wizard-foot" style="display:flex;justify-content:space-between;margin-top:1rem">
+        <a class="btn btn-ghost" href="/ui/painel">Cancelar</a>
+        <a class="btn btn-primary" href="/ui/encerrar?etapa=2">Avançar {{ ui.icon('chevronRight') }}</a>
+      </div>
+
+    {% elif etapa == 2 %}
+      <div class="card"><div class="card-head"><div><h3>Prévia do histórico {{ ano }}</h3><div class="card-sub">É o retrato que será arquivado.</div></div></div>
+        <div class="card-body"><div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Aluno</th><th>Matrícula</th><th>Áreas</th><th>Carga concluída</th><th>Situação</th></tr></thead><tbody>
+          {% for r in linhas %}<tr><td><b>{{ r.nome }}</b></td><td>{{ r.matricula }}</td><td>{{ r.conc }}/{{ r.total }}</td><td>{{ r.carga }} h</td>
+            <td>{{ ui.pill_estado('concluida' if r.completo else 'em_risco', 'completo' if r.completo else 'pendente') }}</td></tr>{% endfor %}
+        </tbody></table></div></div></div>
+      <div class="wizard-foot" style="display:flex;justify-content:space-between;margin-top:1rem">
+        <a class="btn btn-secondary" href="/ui/encerrar?etapa=1">{{ ui.icon('chevronLeft') }} Voltar</a>
+        <a class="btn btn-primary" href="/ui/encerrar?etapa=3">Avançar {{ ui.icon('chevronRight') }}</a>
+      </div>
+
+    {% else %}
+      <div class="card"><div class="card-body" style="text-align:center;padding:1.8rem">
+        <div class="al-avatar" style="margin:0 auto 1rem;background:color-mix(in srgb,var(--st-risco) 30%,transparent);color:var(--st-risco)">{{ ui.icon('alert') }}</div>
+        <h3>Confirmação irreversível</h3>
+        <p class="muted">O histórico de <b>{{ total_alunos }} aluno(s)</b> será gravado e o ciclo marcado como <b>encerrado</b>. Nada é apagado — os dados seguem no banco.</p>
+        <form method="post" action="/ui/ciclos/encerrar" style="max-width:280px;margin:1.2rem auto 0">
+          <div class="field"><label>Digite o ano do ciclo para confirmar</label>
+            <input class="input" name="ano" placeholder="{{ ano }}" style="text-align:center;font-size:1.1rem;font-weight:700" required></div>
+          <div class="wizard-foot" style="display:flex;justify-content:space-between;margin-top:.8rem">
+            <a class="btn btn-secondary" href="/ui/encerrar?etapa=2">{{ ui.icon('chevronLeft') }} Voltar</a>
+            <button class="btn btn-danger" type="submit">{{ ui.icon('power') }} Encerrar definitivamente</button>
+          </div>
+        </form>
+      </div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

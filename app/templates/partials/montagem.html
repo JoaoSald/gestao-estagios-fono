@@ -1,0 +1,80 @@
+{% import "_macros.html" as ui %}
+<div class="mb" style="padding:.55rem;border:1px dashed var(--border);border-radius:.6rem;margin-bottom:1rem">
+  <div class="hint" style="font-weight:700;margin-bottom:.4rem">Banco de prioridade — arraste para uma caixa (ou use o seletor “+ aluno”)</div>
+  <div id="banco-prioridade">
+    {% for a in banco %}
+      <span class="badge b-neutral" draggable="true" data-aluno="{{ a.aluno_id }}"
+            style="cursor:grab;display:inline-flex;gap:.35rem;align-items:center;margin:.15rem">
+        {{ a.nome }} <span class="dim">{{ '7º' if a.semestre and a.semestre <= 7 else '9/10' }} · {{ a.ch_semanal }}h/sem</span>
+      </span>
+    {% else %}
+      <span class="dim">Nenhum aluno de prioridade pendente. Marque “prioridade” no passo Alunos.</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="scroll-y" style="max-height:52vh;overflow-y:auto">
+{# item 16: divisões visuais claras por semestre (mini-ciclo 7º vs demais 9º/10º) #}
+{% for sem_val, sem_titulo, sem_sub in [
+   ('7', '7º semestre — mini-ciclo', 'Audiologia I'),
+   ('9_10', '9º/10º semestre — demais estágios', 'Áreas do 9º/10º')] %}
+{% set areas_sem = montagem_areas | selectattr('fase', 'equalto', sem_val) | list %}
+{% if areas_sem %}
+<section style="margin-bottom:1.3rem;border:1px solid var(--border);border-radius:.7rem;overflow:hidden">
+  <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .8rem;background:var(--surface-2, rgba(148,163,184,.12));border-bottom:1px solid var(--border)">
+    <span class="badge {{ 'b-iniciar' if sem_val == '7' else 'b-andamento' }}"><span class="dt"></span>{{ sem_titulo }}</span>
+    <span class="hint">{{ sem_sub }} · {{ areas_sem|length }} área(s)</span>
+  </div>
+  <div style="padding:.7rem .8rem">
+{% for area in areas_sem %}
+  <div style="margin-bottom:1.1rem">
+    <div style="margin-bottom:.3rem">{{ ui.area_pill(area.nome, area.cor) }}</div>
+    {% for s in area.slots %}
+      <div style="border-left:3px solid {{ area.cor or 'var(--border-2)' }};padding:.15rem 0 .35rem .65rem;margin:.4rem 0">
+        <div class="flex between" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.4rem">
+          <div><b>{{ s.campo }}</b>{% if s.unidade %} <span class="dim">· {{ s.unidade }}</span>{% endif %}
+            <span class="badge b-neutral">{{ s.enc }} enc · {{ s.horas }}h/enc</span></div>
+          <span class="hint">{{ s.dia }} · {{ s.turno }} · {{ s.hora_inicio }}–{{ s.hora_fim }} · {{ s.cap if s.cap is defined else '' }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.45rem;margin-top:.35rem">
+          {% for cx in s.caixas %}
+          <div class="card dropzone" data-grupo="{{ cx.grupo_id }}"
+               style="padding:.5rem;border:1px {{ 'solid' if cx.cheia else 'dashed' }} var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <b>Onda {{ cx.onda }}</b>
+              <span class="badge {{ 'b-concluida' if cx.cheia else 'b-iniciar' }}">{{ cx.ocupacao }}/{{ cx.cap }}</span>
+            </div>
+            <div class="hint">{{ cx.data_inicio.strftime('%d/%m') }} – {{ cx.data_fim.strftime('%d/%m/%Y') }}</div>
+            <div style="margin-top:.3rem;min-height:1.4rem">
+              {% for m in cx.membros %}
+              <span class="badge b-andamento" style="display:inline-flex;gap:.3rem;align-items:center;margin:.12rem">
+                {{ m.nome }}
+                <button class="icon-btn btn-sm" title="Tirar"
+                        hx-post="/ui/montagem/descolocar" hx-vals='{"grupo_id": {{ cx.grupo_id }}, "aluno_id": {{ m.aluno_id }}}'
+                        hx-target="#montagem-board" hx-swap="innerHTML">{{ ui.icon('x') }}</button>
+              </span>
+              {% else %}<span class="dim">arraste um aluno aqui</span>{% endfor %}
+            </div>
+            {% if not cx.cheia and banco %}
+            <select class="select" style="margin-top:.35rem" name="aluno_id"
+                    hx-post="/ui/montagem/colocar" hx-vals='{"grupo_id": {{ cx.grupo_id }}}'
+                    hx-include="this" hx-target="#montagem-board" hx-swap="innerHTML" hx-trigger="change">
+              <option value="">+ aluno…</option>
+              {% for a in banco %}<option value="{{ a.aluno_id }}">{{ a.nome }}</option>{% endfor %}
+            </select>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endfor %}
+{% if not montagem_areas %}
+  <div class="empty" style="padding:1.5rem"><span class="dim">Sem molde — cadastre locais e datas nos passos anteriores.</span></div>
+{% endif %}
+</div>

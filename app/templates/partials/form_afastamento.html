@@ -1,0 +1,9 @@
+{% import "_macros.html" as ui %}
+{# Afastamentos só têm criação (o service não edita) — sempre POST. #}
+{% call ui.modal_form('Novo afastamento', '/ui/afastamentos', 'post', erro, target='#tbody-afastamentos') %}
+  {{ ui.campo_select('Pessoa (docente ou preceptor)', 'pessoa', pessoas) }}
+  {{ ui.campo_select('Tipo', 'tipo', tipos, 'ferias') }}
+  {{ ui.campo('Motivo (opcional)', 'motivo', '') }}
+  {{ ui.campo('Início', 'data_inicio', '', tipo='date', required=true) }}
+  {{ ui.campo('Retorno', 'data_retorno', '', tipo='date', required=true) }}
+{% endcall %}

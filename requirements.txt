@@ -1,0 +1,35 @@
+# Sistema de Gestão de Estágios — Fonoaudiologia UFCSPA
+# Stack: FastAPI + SQLAlchemy (sync/psycopg2) + PostgreSQL + Jinja2/HTMX
+# Instale com:  pip install -r requirements.txt
+
+# --- API / servidor ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# --- banco de dados (SÍNCRONO) ---
+SQLAlchemy>=2.0
+alembic>=1.13
+psycopg2-binary>=2.9        # driver PostgreSQL (versão "binary": não precisa compilar)
+
+# --- configuração / validação ---
+pydantic>=2.7
+pydantic-settings>=2.3      # lê o .env
+
+# --- frontend server-rendered ---
+jinja2>=3.1
+python-multipart>=0.0.9     # necessário pra formulários HTML (POST)
+
+# --- exportação ---
+openpyxl>=3.1               # planilha Excel (.xlsx) dos grupos; .ics do aluno usa a stdlib
+reportlab>=4.0             # PDF dos grupos e do calendário do aluno (Python puro, sem libs de sistema)
+
+# --- autenticação (FASE 6) ---
+passlib[bcrypt]>=1.7
+python-jose[cryptography]>=3.3
+
+# --- integrações externas (FASE 7) ---
+httpx>=0.27
+holidays>=0.50             # feriados nacionais (BR) + estaduais (RS) do período do ciclo
+
+# --- testes (FASE 4+) ---
+pytest>=8.2

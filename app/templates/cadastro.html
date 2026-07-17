@@ -1,0 +1,8 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+<div class="page-head"><div class="row">
+  <div><h1>{{ titulo }}</h1>{% if sub %}<p>{{ sub }}</p>{% endif %}</div>
+</div></div>
+{% include 'partials/tabela_recurso.html' %}
+{% endblock %}

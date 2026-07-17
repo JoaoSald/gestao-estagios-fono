@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% set NAV = [
+  ('CADASTROS', [
+    ('alunos', 'Alunos', 'users', '/ui/alunos'),
+    ('areas', 'Áreas', 'layers', '/ui/areas'),
+    ('docentes', 'Docentes', 'teacher', '/ui/docentes'),
+    ('preceptores', 'Preceptores', 'user', '/ui/preceptores'),
+    ('afastamentos', 'Afastamentos', 'calendarOff', '/ui/afastamentos'),
+    ('locais', 'Locais', 'building', '/ui/locais'),
+    ('eventos', 'Eventos', 'calendar', '/ui/eventos'),
+  ]),
+  ('VISUALIZAÇÕES', [
+    ('painel', 'Painel', 'dashboard', '/ui/painel'),
+    ('estagios', 'Estágios', 'grid', '/ui/estagios'),
+    ('historico', 'Histórico', 'history', '/ui/historico'),
+  ]),
+  ('OPERAÇÕES', [
+    ('remanejar', 'Remanejar', 'shuffle', '/ui/remanejar'),
+    ('encerrar', 'Encerrar ciclo', 'power', '/ui/encerrar'),
+  ]),
+] %}
+
+{% block body %}
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">{{ ui.icon('logo') }}</div>
+      <div><div class="t1">Gestão de Estágios</div><div class="t2">Fonoaudiologia · UFCSPA</div></div>
+    </div>
+    <nav class="nav">
+      {% for grupo, itens in NAV %}
+        <div class="nav-group">{{ grupo }}</div>
+        {% for chave, label, ic, url in itens %}
+          {% if chave == 'remanejar' %}
+          <a class="nav-link" style="cursor:pointer" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML">
+            {{ ui.icon(ic) }}<span>{{ label }}</span>
+            {% if ciclo and ciclo.escala_desatualizada %}<span class="nav-badge">{{ fila_count }}</span>{% endif %}
+          </a>
+          {% else %}
+          <a class="nav-link {{ 'active' if ativo == chave else '' }}" href="{{ url }}">
+            {{ ui.icon(ic) }}<span>{{ label }}</span>
+          </a>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </nav>
+    <div class="sidebar-foot">
+      <div class="al-avatar" style="width:36px;height:36px;border-radius:10px;font-size:.85rem">CO</div>
+      <div class="who"><b>Coordenação</b><span class="dim">Comissão de Estágios</span></div>
+      <button class="icon-btn pull-right" id="btn-tema" title="Alternar tema">{{ ui.icon('sun') }}</button>
+      <a class="icon-btn" href="/logout" title="Sair">{{ ui.icon('logout') }}</a>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <button class="icon-btn menu-toggle" id="btn-menu">{{ ui.icon('grid') }}</button>
+      <div class="spacer"></div>
+      {% if ciclo %}<span class="chip-cycle"><span class="dot"></span>Ciclo {{ ciclo_ano }} · em andamento</span>{% endif %}
+    </div>
+    <main class="content" id="view-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div class="drawer-backdrop" id="drawer-back"></div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% import "_macros.html" as ui %}
+{# ---- Etapa 3a · Áreas (simples + compostas com sub-áreas). Conteúdo re-renderizável (#bs-areas). ---- #}
+<div class="card" style="margin-bottom:1rem"><div class="card-head">
+  <div><h3>Passo 3a · Áreas</h3><div class="card-sub">Simples (o aluno cumpre em qualquer local) e compostas (edite a área para criar/remover sub-áreas com CH que somam o total, ex.: Audiologia II, Hospitalar).</div></div>
+  <button class="btn btn-primary btn-sm" hx-get="/ui/areas/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Nova área</button>
+</div><div class="card-body">
+  {% for a in areas_simples %}
+  <div class="flex between" style="display:flex;justify-content:space-between;align-items:center;padding:.32rem 0;border-bottom:1px solid var(--border)">
+    <div>{{ ui.area_pill(a.nome, a.cor) }} <span class="dim">· {{ a.carga_exigida }}h</span>{% if a.pre_requisito %} <span class="badge b-iniciar">pré-req</span>{% endif %}</div>
+    <button class="icon-btn btn-sm" title="Editar área" hx-get="/ui/areas/{{ a.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+  </div>
+  {% endfor %}
+  {% for c in areas_compostas %}
+  <div class="flex between" style="display:flex;justify-content:space-between;align-items:center;margin-top:.7rem;padding-top:.4rem;border-top:2px solid var(--border)">
+    <div>{{ ui.area_pill(c.mae.nome, c.mae.cor) }} <span class="dim">· composta · total {{ c.mae.carga_exigida }}h ({{ c.subs|length }} sub-áreas, soma {{ c.soma }}h)</span></div>
+    <button class="icon-btn btn-sm" title="Editar área e sub-áreas" hx-get="/ui/areas/{{ c.mae.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+  </div>
+  <div style="padding-left:.9rem">
+    {% for s in c.subs %}<div style="padding:.2rem 0">↳ {{ ui.area_pill(s.nome, s.cor or c.mae.cor) }} <span class="dim">· {{ s.carga_exigida }}h</span></div>{% else %}<div style="padding:.2rem 0" class="dim">sem sub-áreas</div>{% endfor %}
+  </div>
+  {% endfor %}
+</div></div>

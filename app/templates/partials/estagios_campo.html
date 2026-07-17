@@ -1,0 +1,56 @@
+{% import "_macros.html" as ui %}
+{% if not campo %}
+  <div class="tbl-wrap"><div class="empty" style="padding:2rem"><span class="dim">Nenhuma alocação gerada ainda.</span></div></div>
+{% else %}
+<div class="flex flex-wrap mb" style="gap:.6rem;margin-bottom:.8rem">
+  <label class="dim" style="font-size:.8rem;font-weight:600">Cenário</label>
+  <select class="select" style="max-width:34rem" name="local"
+          hx-get="/ui/estagios/conteudo?vista=campo" hx-target="#estagios-conteudo" hx-swap="innerHTML">
+    {% for o in campo.opcoes %}<option value="{{ o.id }}" {{ 'selected' if o.id == campo.local_sel else '' }}>{{ o.label }} ({{ o.n }}/{{ o.cap }})</option>{% endfor %}
+  </select>
+</div>
+<div class="campo-layout">
+  <div class="cal-host">{{ ui.calendario(cal) }}</div>
+  <div class="card"><div class="card-head" style="border-left:4px solid {{ campo.area_cor }}">
+    <div>{{ ui.area_pill(campo.area_nome, campo.area_cor) }}
+      <div style="font-weight:700;font-size:1rem;margin-top:.4rem">{{ campo.local.campo }}</div></div>
+  </div>
+  <div class="card-body campo-info">
+    <div class="li">{{ ui.icon('teacher') }}<div><span class="k">Docente:</span> {{ campo.docente }}</div></div>
+    <div class="li">{{ ui.icon('user') }}<div><span class="k">Preceptor:</span> {{ campo.preceptor or '— (só o docente)' }}</div></div>
+    <div class="li">{{ ui.icon('clock') }}<div><span class="k">Horário:</span> {{ campo.local.dia_semana.value }} · {{ campo.local.turno.value }} · {{ campo.local.hora_inicio.strftime('%H:%M') }}–{{ campo.local.hora_fim.strftime('%H:%M') }}</div></div>
+    <div class="li">{{ ui.icon('calendar') }}<div><span class="k">Período:</span> {{ campo.ini_geral.strftime('%d/%m/%Y') if campo.ini_geral else '—' }} → {{ campo.fim_geral.strftime('%d/%m/%Y') if campo.fim_geral else '—' }}</div></div>
+    <div class="li">{{ ui.icon('layers') }}<div><span class="k">Vagas:</span> <b>{{ campo.ocupacao }}/{{ campo.local.capacidade }}</b> {% if campo.vagas_livres > 0 %}<span class="dim">({{ campo.vagas_livres }} livre(s))</span>{% else %}<span class="dim">(lotado)</span>{% endif %}</div></div>
+  </div>
+  <div class="card-head"><div class="flex between" style="width:100%;align-items:center;gap:.5rem">
+    <div class="dim" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Alunos no cenário</div>
+    <div class="row-actions">
+      {% if campo.vagas_livres > 0 %}<button class="btn btn-secondary btn-sm"
+        hx-get="/ui/estagios/adicionar-modal?local={{ campo.local_sel }}" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Adicionar</button>{% endif %}
+      {% if campo.roster %}<button class="btn btn-secondary btn-sm"
+        hx-post="/ui/estagios/concluir-grupo" hx-vals='{"local_id": {{ campo.local_sel }}}' hx-target="#estagios-conteudo" hx-swap="innerHTML"
+        hx-confirm="Concluir todos os alunos ativos de {{ campo.local.campo }}? As áreas viram concluídas e as vagas são liberadas.">{{ ui.icon('check') }} Concluir grupo</button>{% endif %}
+    </div>
+  </div></div>
+  <div class="card-body" style="padding-top:.4rem">
+    {% for r in campo.roster %}
+      <div class="roster-item"><span class="roster-dot" style="background:{{ campo.area_cor }}"></span>
+        <div style="min-width:0;flex:1"><div class="rn">{{ r.aluno_nome }}{% if r.travada %} {{ ui.icon('lock') }}{% endif %}</div>
+          <div class="rm">{{ r.cumpr }}/{{ r.total }} sessões · {{ r.pct }}% · até {{ r.fim.strftime('%d/%m/%Y') }}</div></div>
+        {% if r.risco %}<span class="badge b-risco"><span class="dt"></span>risco</span>{% endif %}
+        {% if r.grupo_id %}
+        <div class="row-actions">
+          <button class="icon-btn btn-sm" title="Mover para outro local da área"
+            hx-get="/ui/estagios/mover-campo-modal?aloc={{ r.aloc_id }}" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }}</button>
+          <button class="icon-btn btn-sm" title="Remover do local (libera a vaga)"
+            hx-post="/ui/estagios/remover" hx-target="#estagios-conteudo" hx-swap="innerHTML"
+            hx-vals='{"aluno_id": {{ r.aluno_id }}, "grupo_id": {{ r.grupo_id }}, "vista": "campo", "local": "{{ campo.local_sel }}"}'
+            hx-confirm="Remover {{ r.aluno_nome }} deste local? A vaga é liberada e o aluno volta para a fila da área.">{{ ui.icon('trash') }}</button>
+        </div>
+        {% endif %}
+      </div>
+    {% else %}<div class="dim">Nenhum aluno.</div>{% endfor %}
+  </div>
+  </div>
+</div>
+{% endif %}

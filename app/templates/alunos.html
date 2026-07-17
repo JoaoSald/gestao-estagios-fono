@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+<div class="page-head"><div class="row">
+  <div><h1>Alunos</h1><p>{{ (matriculados|length ~ ' aluno(s) · ordenados por prioridade') if vista != 'ofertas' else 'oferta × demanda por área' }}</p></div>
+  <button class="btn btn-primary" hx-get="/ui/alunos/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Novo aluno</button>
+</div></div>
+<div id="alunos-conteudo">{% include 'partials/alunos_op_conteudo.html' %}</div>
+{% endblock %}

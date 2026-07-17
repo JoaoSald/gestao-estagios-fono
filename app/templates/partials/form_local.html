@@ -1,0 +1,24 @@
+{% import "_macros.html" as ui %}
+{% set edit = obj is not none %}
+{% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' local (slot)',
+       '/ui/locais/' ~ obj.id if edit else '/ui/locais',
+       'put' if edit else 'post', erro, target=(target or '#tbody-locais')) %}
+  {{ ui.campo_select('Área', 'area_id', areas, (obj.area_id if edit else '')) }}
+  {{ ui.campo_select('Docente responsável', 'docente_id', [('', '— selecione —')] + docentes, (obj.docente_id if edit and obj.docente_id else '')) }}
+  {{ ui.campo('Campo', 'campo', obj.campo if edit else '', required=true, placeholder='Ex.: AMB. IAPI') }}
+  {{ ui.campo('Unidade (opcional)', 'unidade', (obj.unidade if edit else '')) }}
+  <div class="grid g-2">
+    {{ ui.campo_select('Dia', 'dia_semana', dias, (obj.dia_semana.value if edit else 'segunda')) }}
+    {{ ui.campo_select('Turno', 'turno', turnos, (obj.turno.value if edit else 'manha')) }}
+  </div>
+  <div class="grid g-2">
+    {{ ui.campo('Início', 'hora_inicio', (obj.hora_inicio.strftime('%H:%M') if edit else '08:00'), tipo='time', required=true) }}
+    {{ ui.campo('Fim', 'hora_fim', (obj.hora_fim.strftime('%H:%M') if edit else '12:00'), tipo='time', required=true) }}
+  </div>
+  <div class="grid g-2">
+    {{ ui.campo('Capacidade', 'capacidade', (obj.capacidade if edit else 4), tipo='number', required=true) }}
+    {{ ui.campo('Carga horária total (h)', 'carga_horaria', (obj.carga_horaria if edit else 40), tipo='number', required=true) }}
+  </div>
+  {{ ui.campo_check('Passagem de grupo', 'passagem_grupo', obj.passagem_grupo if edit else false) }}
+  <p class="hint">As <b>horas por encontro</b> são calculadas automaticamente (fim − início do turno). O nº de encontros é derivado (carga total ÷ horas/encontro). O preceptor de campo é definido em “Configurações de campo”.</p>
+{% endcall %}

@@ -1,0 +1,106 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+
+<div class="page-head"><div class="row"><div>
+  <h1>Painel de Operação</h1>
+  {% if ciclo %}<p>Ciclo {{ ciclo_ano }} · {{ ciclo.data_inicio.strftime('%d/%m/%Y') }} → {{ ciclo.data_fim.strftime('%d/%m/%Y') }}</p>{% endif %}
+</div></div></div>
+
+{% if sem_ciclo %}
+  <div class="empty" style="padding:2rem"><span class="dim">Nenhum ciclo ativo. Abra um ciclo para começar.</span></div>
+{% else %}
+
+  {% if progresso.aguardando %}
+  <div class="banner-remanejo">
+    <div class="bico">{{ ui.icon('checkCircle') }}</div>
+    <div class="btxt"><b>{{ progresso.aguardando }} aluno(s) aguardando vaga</b>
+      <span>Há matrículas em andamento sem alocação. Remanejar coloca a fila em andamento por prioridade — respeitando conflito, restrição e teto de 30h.</span></div>
+    <div class="bacts"><button class="btn btn-primary btn-sm" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }} Remanejar agora</button></div>
+  </div>
+  {% endif %}
+  {% if escala_desatualizada %}
+  <div class="banner-remanejo">
+    <div class="bico">{{ ui.icon('alert') }}</div>
+    <div class="btxt"><b>Alterações pendentes afetam a escala</b>
+      <span>A escala exibida está marcada como desatualizada. Recalcule apenas o afetado — nada nas áreas concluídas será tocado.</span></div>
+    <div class="bacts"><button class="btn btn-primary btn-sm" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }} Remanejar agora</button></div>
+  </div>
+  {% endif %}
+
+  <div class="grid g-5 mb">
+    {% for k in kpis %}
+    <div class="kpi {{ 'warn' if k.warn else '' }}">
+      <div class="khead"><span class="kicon">{{ ui.icon(k.ic) }}</span>{{ k.label }}</div>
+      <div class="kval">{{ k.valor }}</div>
+      <div class="kfoot">{{ k.sub }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid g-3 mb">
+    <div class="card" style="grid-column:span 2">
+      <div class="card-head"><h3>Ações rápidas</h3></div>
+      <div class="card-body"><div class="qa">
+        <a class="qa-btn" style="cursor:pointer" hx-get="/ui/alunos/form" hx-target="#modal-root" hx-swap="innerHTML"><span class="qi">{{ ui.icon('user') }}</span><span>Novo aluno</span></a>
+        <a class="qa-btn" style="cursor:pointer" hx-get="/ui/locais/form" hx-target="#modal-root" hx-swap="innerHTML"><span class="qi">{{ ui.icon('building') }}</span><span>Novo local</span></a>
+        <a class="qa-btn" style="cursor:pointer" hx-get="/ui/eventos/form" hx-target="#modal-root" hx-swap="innerHTML"><span class="qi">{{ ui.icon('calendar') }}</span><span>Novo evento</span></a>
+        <a class="qa-btn" style="cursor:pointer" hx-get="/ui/afastamentos/form" hx-target="#modal-root" hx-swap="innerHTML"><span class="qi">{{ ui.icon('calendarOff') }}</span><span>Novo afastamento</span></a>
+        <a class="qa-btn" style="cursor:pointer" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML"><span class="qi">{{ ui.icon('shuffle') }}</span><span>Remanejar</span></a>
+      </div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Próximos eventos</h3><a class="btn btn-ghost btn-sm" href="/ui/eventos">Ver todos</a></div>
+      <div class="card-body">
+        {% if eventos %}
+          {% for e in eventos %}
+          <div class="evrow">
+            <div class="evdate"><div class="d">{{ e.data_inicio.strftime('%d') }}</div><div class="m">{{ e.data_inicio.strftime('%m') }}</div></div>
+            <div class="evinfo"><b>{{ e.nome }}</b><span>{{ e.tipo.value }} · {{ 'bloqueia estágio' if e.bloqueia_estagio else 'não bloqueia' }}</span></div>
+            <span class="badge b-neutral pull-right">{{ e.origem.value }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty" style="padding:1.5rem"><span class="dim">Sem eventos próximos.</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g-2">
+    <div class="card">
+      <div class="card-head"><h3>Progresso da turma</h3><a class="btn btn-ghost btn-sm" href="/ui/estagios">Ver escala</a></div>
+      <div class="card-body">
+        {% set p = progresso %}{% set tot = p.total or 1 %}
+        <div class="seg mb">
+          {% for chave, cor in [('concluida','--st-concluida'),('em_andamento','--st-andamento'),('aguardando','--st-aguardando'),('em_risco','--st-risco'),('incompleta','--st-risco'),('interrompida','--st-interrompida')] %}
+            {% if p[chave] %}<span style="width:{{ (p[chave]/tot*100) }}%;background:var({{ cor }})"></span>{% endif %}
+          {% endfor %}
+        </div>
+        <div class="flex flex-wrap" style="gap:.5rem">
+          {{ ui.pill_estado('concluida', 'Concluídas · ' ~ p.concluida) }}
+          {{ ui.pill_estado('em_andamento', 'Em andamento · ' ~ p.em_andamento) }}
+          {{ ui.pill_estado('aguardando', 'Aguardando · ' ~ p.aguardando) }}
+          {{ ui.pill_estado('em_risco', 'Em risco · ' ~ p.em_risco) }}
+        </div>
+        <p class="hint mt">Distribuição de {{ p.total }} pares aluno×área no ciclo.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Atividade recente</h3></div>
+      <div class="card-body">
+        {% if atividade %}
+        <div class="timeline">
+          {% for a in atividade %}
+          <div class="tl-item"><span class="tl-dot"></span><div class="txt">{{ a.texto }}</div><div class="when">{{ a.quando.strftime('%d/%m/%Y') }}</div></div>
+          {% endfor %}
+        </div>
+        {% else %}
+          <div class="empty" style="padding:1.5rem"><span class="dim">Nenhuma atividade ainda.</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+{% endif %}
+{% endblock %}

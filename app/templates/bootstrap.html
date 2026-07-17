@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set PASSOS = ['Ciclo','Docentes','Áreas e Locais','Preceptores','Config. de campo','Afastamentos','Alunos','Eventos','Montagem dos grupos','Revisão & Geração'] %}
+{% block body %}
+<div class="content" style="max-width:980px;margin:0 auto;padding:1.2rem">
+
+  <div class="flex between mb" style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;gap:.7rem;align-items:center">
+      <div class="logo" style="font-size:1.4rem">{{ ui.icon('logo') }}</div>
+      <div><h1 style="font-size:1.25rem;margin:0">Abertura do Ciclo {{ ano }}</h1>
+        <p class="muted" style="margin:0">Bootstrap · passo {{ passo }} de 10</p></div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="icon-btn" id="btn-tema" title="Alternar tema">{{ ui.icon('sun') }}</button>
+      <a class="btn btn-ghost btn-sm" href="/logout">{{ ui.icon('logout') }} Sair</a>
+    </div>
+  </div>
+
+  <div class="stepper">
+    {% for p in PASSOS %}
+      {% set n = loop.index %}
+      {% if n < passo %}
+        <form method="post" action="/ui/bootstrap/passo/{{ n }}" style="display:contents">
+          <button type="submit" class="step done" style="cursor:pointer;border:0;background:transparent;font:inherit">
+            <span class="num">✓</span><span>{{ p }}</span></button>
+        </form>
+      {% else %}
+        <div class="step {{ 'current' if n == passo else '' }}"><span class="num">{{ n }}</span><span>{{ p }}</span></div>
+      {% endif %}
+      {% if not loop.last %}<span class="step-line {{ 'done' if n < passo else '' }}"></span>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="bootstrap-body" id="bs-body">
+    {% if erro %}<div class="field-err" style="margin-bottom:.8rem">{{ erro }}</div>{% endif %}
+
+    {% if passo == 1 %}
+      <div class="card"><div class="card-head"><h3>Passo 1 · Dados do ciclo</h3></div>
+      <div class="card-body">
+        <p class="muted mb">É no intervalo início→fim que o sistema monitora o avanço, prevê o fechamento de carga e alerta risco.</p>
+        <div class="grid g-2">
+          <div class="field"><label>Data de início</label>
+            <input class="input" type="date" name="data_inicio" form="form-avancar" value="{{ ciclo.data_inicio.isoformat() }}" required></div>
+          <div class="field"><label>Data de fim</label>
+            <input class="input" type="date" name="data_fim" form="form-avancar" value="{{ ciclo.data_fim.isoformat() }}" required></div>
+        </div>
+      </div></div>
+
+    {% elif passo == 5 %}
+      <div class="card"><div class="card-head"><div><h3>Passo 5 · Configurações de campo</h3>
+        <div class="card-sub">Por slot (local · dia · turno): escolha o docente responsável e o preceptor de campo (opcional). Um slot só cai quando docente E preceptor estão afastados.</div></div></div>
+        <div class="card-body">
+        {% if locais %}
+        <div class="tbl-wrap scroll-y" style="max-height:56vh"><table class="tbl">
+          <thead><tr><th>Área</th><th>Local</th><th>Quando</th><th>Docente</th><th>Preceptor</th></tr></thead>
+          <tbody>
+          {% for l in locais %}
+            <tr>
+              <td>{% set _a = areas_map.get(l.area_id) %}{% set _lab = (areas_map[_a.area_mae_id].nome ~ ' - ' ~ _a.nome) if (_a and _a.area_mae_id and _a.area_mae_id in areas_map) else (_a.nome if _a else '?') %}{{ ui.area_pill(_lab, _a.cor if _a else None) }}</td>
+              <td><b>{{ l.campo }}</b>{% if l.unidade %}<div class="hint">{{ l.unidade }}</div>{% endif %}</td>
+              <td class="hint">{{ l.dia_semana.value }} · {{ l.turno.value }}<br>{{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }}</td>
+              <td><select class="select" name="docente_id" hx-post="/ui/locais/{{ l.id }}/config" hx-trigger="change" hx-include="closest tr" hx-swap="none">
+                <option value="">— docente —</option>
+                {% for d in docentes %}<option value="{{ d.id }}" {{ 'selected' if l.docente_id == d.id else '' }}>{{ d.nome }}</option>{% endfor %}
+              </select></td>
+              <td><select class="select" name="preceptor" hx-post="/ui/locais/{{ l.id }}/config" hx-trigger="change" hx-include="closest tr" hx-swap="none">
+                <option value="">— nenhum —</option>
+                {% for p in preceptores %}<option value="externo:{{ p.id }}" {{ 'selected' if (l.preceptor_tipo=='externo' and l.preceptor_id==p.id) else '' }}>{{ p.nome }} (externo)</option>{% endfor %}
+                {% for d in docentes %}<option value="docente:{{ d.id }}" {{ 'selected' if (l.preceptor_tipo=='docente' and l.preceptor_id==d.id) else '' }}>{{ d.nome }} (docente)</option>{% endfor %}
+              </select></td>
+            </tr>
+          {% endfor %}
+          </tbody></table></div>
+        {% else %}
+          <div class="empty" style="padding:1.5rem"><span class="dim">Cadastre locais no passo “Áreas e Locais” primeiro.</span></div>
+        {% endif %}
+        </div></div>
+
+    {% elif passo == 3 %}
+      {% include 'partials/passo3.html' %}
+
+    {% elif passo == 7 %}
+      <p class="hint" style="margin:0 0 .8rem">Marque <b>prioridade</b> em quem você quer <b>posicionar à mão</b> na Montagem dos grupos. Não precisa ordenar todo mundo — o resto o sistema aloca (prioritários não-colocados primeiro, depois por matrícula).</p>
+      <div id="alunos-conteudo">{% include 'partials/alunos_conteudo.html' %}</div>
+
+    {% elif passo == 9 %}
+      <div id="montagem-board">{% include 'partials/montagem.html' %}</div>
+
+    {% elif passo == 10 %}
+      <div id="revisao-wrap">{% include 'partials/revisao.html' %}</div>
+
+    {% else %}
+      {# passos de cadastro (2,3,4,6,8) — uma ou mais tabelas reusadas #}
+      {% for t in tabelas %}
+        <div class="card" style="margin-bottom:1rem"><div class="card-head"><div>
+          <h3>{{ t.titulo }}</h3><div class="card-sub">{{ t.sub }}</div></div></div>
+          <div class="card-body">
+            {% if t.recurso == 'locais' and locais_resumo %}
+            <div style="padding:.2rem .1rem .6rem;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:.25rem;margin-bottom:.6rem">
+              {% for r in locais_resumo %}<div class="hint">{{ ui.area_pill(r.nome, r.cor) }}: <b>{{ r.n }} slot(s)</b> → {{ r.n }} grupo(s) em paralelo · até <b>{{ r.cap }}</b> aluno(s)/leva · ~{{ r.enc }} encontros p/ concluir</div>{% endfor %}
+            </div>
+            {% endif %}
+            {% set recurso = t.recurso %}{% set colunas = t.colunas %}{% set itens = t.itens %}
+            {% set del_acao = t.del_acao %}{% set novo_label = t.novo_label %}
+            {% include 'partials/tabela_recurso.html' %}
+          </div></div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  {% if passo != 10 %}
+  <div class="wizard-foot" style="display:flex;justify-content:space-between;margin-top:1rem">
+    {% if passo > 1 %}
+      <form method="post" action="/ui/bootstrap/passo/{{ passo - 1 }}"><button class="btn btn-secondary">{{ ui.icon('chevronLeft') }} Voltar</button></form>
+    {% else %}<span></span>{% endif %}
+    <form method="post" action="/ui/bootstrap/passo/{{ passo + 1 }}" id="form-avancar">
+      <button class="btn btn-primary">Avançar {{ ui.icon('chevronRight') }}</button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

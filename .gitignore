@@ -1,0 +1,16 @@
+# Segredos / config local — NUNCA versionar
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Testes
+tests/
+
+# Sistema / editores
+.DS_Store
+.vscode/
+.idea/

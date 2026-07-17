@@ -1,0 +1,30 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>{{ titulo }}</h3><button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    {% if motivos %}
+    <div class="field-err" style="margin-bottom:.9rem;padding:.6rem .8rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">
+      <b>Não foi possível:</b>
+      <ul style="margin:.3rem 0 0;padding-left:1.1rem">{% for m in motivos %}<li>{{ m }}</li>{% endfor %}</ul>
+      {% if sugestao %}<div style="margin-top:.4rem">Sugestão: caixa da onda {{ sugestao.onda }} (início {{ sugestao.data_inicio }}).</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if candidatas %}
+    <p class="muted" style="margin:0 0 .6rem">Escolha a caixa de destino:</p>
+    <div class="flex flex-col" style="display:flex;flex-direction:column;gap:.4rem">
+      {% for c in candidatas %}
+      <button class="btn btn-secondary" style="justify-content:space-between"
+              hx-post="{{ action }}"
+              hx-vals='{"aluno_id": {{ aluno_id }}, {{ campo_ids }}: {{ c.id }}{% if grupo_origem %}, "grupo_origem": {{ grupo_origem }}{% endif %}}'
+              hx-target="#board" hx-swap="innerHTML">
+        <span>{{ c.local_campo }} · onda {{ c.onda }}</span>
+        <span class="dim">{{ c.data_inicio.strftime('%d/%m') }} · {{ c.ocupacao }}/{{ c.cap }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty" style="padding:1rem"><span class="dim">Nenhuma caixa com vaga para esta área.</span></div>
+    {% endif %}
+  </div>
+  <div class="modal-foot"><button type="button" class="btn btn-secondary" data-close>Fechar</button></div>
+</div></div>

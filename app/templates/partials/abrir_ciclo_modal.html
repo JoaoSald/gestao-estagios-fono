@@ -1,0 +1,19 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Abrir novo ciclo</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <form hx-post="/ui/ciclos/abrir" hx-target="#modal-root" hx-swap="innerHTML">
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:1rem">Defina o intervalo do ciclo. É com base no início→fim que o sistema prevê o fechamento de carga e os alertas de risco.</p>
+      {% if erro %}<div class="field-err" style="margin-bottom:.9rem;padding:.6rem .8rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">{{ erro }}</div>{% endif %}
+      <div class="form-grid">
+        <div class="field"><label>Data de início</label><input class="input" type="date" name="data_inicio" value="{{ ini }}" required></div>
+        <div class="field"><label>Data de fim</label><input class="input" type="date" name="data_fim" value="{{ fim }}" required></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+      <button type="submit" class="btn btn-primary">{{ ui.icon('arrowRight') }} Criar e iniciar bootstrap</button>
+    </div>
+  </form>
+</div></div>

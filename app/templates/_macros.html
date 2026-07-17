@@ -1,0 +1,163 @@
+{# Helpers de UI portados do lib.js do protótipo — ícones SVG + componentes comuns. #}
+
+{% macro icon(name, cls='') -%}
+{%- set icons = {
+  'dashboard': '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'user': '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  'teacher': '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
+  'calendarOff': '<path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="m9 15 6 -6"/>',
+  'building': '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M10 21v-4h4v4"/>',
+  'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>',
+  'grid': '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  'history': '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  'shuffle': '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
+  'power': '<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/>',
+  'plus': '<path d="M12 5v14M5 12h14"/>',
+  'check': '<path d="M20 6 9 17l-5-5"/>',
+  'checkCircle': '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m9 11 3 3L22 4"/>',
+  'alert': '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+  'x': '<path d="M18 6 6 18M6 6l12 12"/>',
+  'chevronRight': '<path d="m9 18 6-6-6-6"/>',
+  'chevronLeft': '<path d="m15 18-6-6 6-6"/>',
+  'edit': '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+  'trash': '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  'search': '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  'clock': '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  'flag': '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1Z"/><path d="M4 22v-7"/>',
+  'layers': '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  'moon': '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/>',
+  'sparkles': '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>',
+  'reset': '<path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.4 2.6L3 8"/><path d="M3 3v5h5"/>',
+  'logo': '<path d="M12 2a7 7 0 0 0-7 7c0 3 2 4 2 7a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3c0-3 2-4 2-7a7 7 0 0 0-7-7Z"/><path d="M9 19h6"/>',
+  'file': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
+  'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  'arrowRight': '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  'eye': '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  'logout': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  'mail': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>',
+  'lock': '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'sync': '<path d="M21 12a9 9 0 0 1-9 9c-2.5 0-4.8-1-6.4-2.6L3 16"/><path d="M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.4 2.6L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>'
+} -%}
+<span class="ic {{ cls }}" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ icons.get(name, '')|safe }}</svg></span>
+{%- endmacro %}
+
+{# Pílula de estado (§6.3) com a cor certa do design system. #}
+{% macro pill_estado(estado, label='') -%}
+{%- set cores = {
+  'a_iniciar': 'var(--st-iniciar)', 'aguardando': 'var(--st-aguardando)',
+  'em_andamento': 'var(--st-andamento)', 'em_risco': 'var(--st-risco)',
+  'concluida': 'var(--st-concluida)', 'interrompida': 'var(--st-interrompida)',
+  'incompleta': 'var(--st-risco)'
+} -%}
+{%- set rotulos = {
+  'a_iniciar': 'A iniciar', 'aguardando': 'Aguardando vaga', 'em_andamento': 'Em andamento',
+  'em_risco': 'Em risco', 'concluida': 'Concluída', 'interrompida': 'Interrompida',
+  'incompleta': 'Incompleta'
+} -%}
+<span class="badge" style="background:color-mix(in srgb, {{ cores.get(estado, 'var(--st-iniciar)') }} 18%, transparent);color:{{ cores.get(estado, 'var(--st-iniciar)') }};border:1px solid color-mix(in srgb, {{ cores.get(estado, 'var(--st-iniciar)') }} 40%, transparent)">{{ label or rotulos.get(estado, estado) }}</span>
+{%- endmacro %}
+
+{# Pílula da ÁREA com a cor do catálogo (espelha o .area-pill do versao_2). #}
+{% macro area_pill(nome, cor) -%}
+{%- set c = cor or '#64748b' -%}
+<span class="area-pill" style="background:{{ c }}22;color:{{ c }}"><span class="dt" style="background:{{ c }}"></span>{{ nome }}</span>
+{%- endmacro %}
+
+{# Calendário mensal reutilizável (espelha renderCal* do versao_2). `cal` = dict com
+   titulo, dows, celulas [{out} | {dia, hoje, chips:[{kind:'sess'|'ev', label, cor, esmaece, contorno}]}],
+   host_id, prev_url, next_url, pode_prev, pode_next, legenda (opcional). Navegação via HTMX. #}
+{% macro calendario(cal) -%}
+<div id="{{ cal.host_id }}">
+  <div class="cal">
+    <div class="cal-head">
+      <button class="icon-btn" {% if cal.pode_prev %}hx-get="{{ cal.prev_url }}" hx-target="#{{ cal.host_id }}" hx-swap="outerHTML"{% else %}disabled{% endif %}>{{ icon('chevronLeft') }}</button>
+      <h3>{{ cal.titulo }}</h3>
+      <button class="icon-btn" {% if cal.pode_next %}hx-get="{{ cal.next_url }}" hx-target="#{{ cal.host_id }}" hx-swap="outerHTML"{% else %}disabled{% endif %}>{{ icon('chevronRight') }}</button>
+    </div>
+    <div class="cal-grid">
+      {% for d in cal.dows %}<div class="cal-dow">{{ d }}</div>{% endfor %}
+      {% for cel in cal.celulas %}
+        {% if cel.out %}<div class="cal-cell out"></div>
+        {% else %}
+        <div class="cal-cell {{ 'today' if cel.hoje else '' }}">
+          <div class="dn">{{ cel.dia }}</div>
+          {% for ch in cel.chips %}
+            {% if ch.kind == 'ev' %}
+              <span class="cal-ev" style="{% if ch.cor %}background:{{ ch.cor }}22;color:{{ ch.cor }};border:1px solid {{ ch.cor }}66{% endif %}" title="{{ ch.label }}">{{ ch.label }}</span>
+            {% else %}
+              <span class="cal-sess" style="background:{{ ch.cor }}{{ ';opacity:.72' if ch.esmaece else '' }}{{ ';box-shadow:inset 0 0 0 1.5px rgba(244,63,94,.9)' if ch.contorno else '' }}" title="{{ ch.label }}">{{ ch.label }}</span>
+            {% endif %}
+          {% endfor %}
+          {% if cel.mais %}<span class="cal-more">+{{ cel.mais }}</span>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% if cal.legenda %}
+  <div class="cal-legend" style="margin-top:.6rem">
+    {% for l in cal.legenda %}<span class="leg-item"><span class="leg-dot" style="background:{{ l.cor }}"></span>{{ l.label }}{% if l.n is defined %}<span class="leg-n">{{ l.n }}</span>{% endif %}</span>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# Campo de busca ao vivo (HTMX): dispara GET no `target` e troca o `swap`. #}
+{% macro search_box(url, target, placeholder='Buscar…', name='q') -%}
+<div class="search-box">
+  {{ icon('search') }}
+  <input class="input" type="search" name="{{ name }}" autocomplete="off" placeholder="{{ placeholder }}"
+         hx-get="{{ url }}" hx-trigger="keyup changed delay:300ms, search" hx-target="{{ target }}" hx-swap="innerHTML">
+</div>
+{%- endmacro %}
+
+{# Busca ao vivo NO CLIENTE (sem round-trip): filtra as linhas [data-nome] dentro do
+   [data-lista-wrap] mais próximo. Usada nas listas de alunos (itens 13 e 18). #}
+{% macro busca_local(placeholder='Buscar por nome…') -%}
+<div class="search-box">
+  {{ icon('search') }}
+  <input class="input" type="search" autocomplete="off" placeholder="{{ placeholder }}" oninput="filtrarLista(this)">
+</div>
+{%- endmacro %}
+
+{% macro pbar(pct, cor='var(--brand-500)') -%}
+<div class="pbar"><span style="width:{{ [pct, 100]|min }}%;background:{{ cor }}"></span></div>
+{%- endmacro %}
+
+{# Modal com formulário HTMX. O corpo (campos) vem via {% call %}.
+   estatico=true → clicar fora (backdrop) e Esc NÃO fecham (só X/Cancelar/Salvar). #}
+{% macro modal_form(titulo, action, metodo='post', erro='', target='#tbody', estatico=false) -%}
+<div class="modal-backdrop"{% if estatico %} data-static{% endif %}><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>{{ titulo }}</h3><button class="icon-btn" type="button" data-close>{{ icon('x') }}</button></div>
+  <form hx-{{ metodo }}="{{ action }}" hx-target="{{ target }}" hx-swap="innerHTML">
+    <div class="modal-body">
+      {% if erro %}<div class="field-err" style="margin-bottom:.9rem;padding:.6rem .8rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">{{ erro }}</div>{% endif %}
+      {{ caller() }}
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+</div></div>
+{%- endmacro %}
+
+{% macro campo(label, name, valor='', tipo='text', required=false, placeholder='') -%}
+<div class="field"><label>{{ label }}</label>
+<input class="input" type="{{ tipo }}" name="{{ name }}" value="{{ valor if valor is not none else '' }}"
+  {% if required %}required{% endif %} placeholder="{{ placeholder }}"></div>
+{%- endmacro %}
+
+{% macro campo_select(label, name, opcoes, valor='') -%}
+<div class="field"><label>{{ label }}</label>
+<select class="select" name="{{ name }}">
+{% for v, txt in opcoes %}<option value="{{ v }}" {% if v|string == valor|string %}selected{% endif %}>{{ txt }}</option>{% endfor %}
+</select></div>
+{%- endmacro %}
+
+{% macro campo_check(label, name, marcado=false) -%}
+<label class="check {{ 'on' if marcado else '' }}" style="margin-bottom:1rem">
+  <input type="checkbox" name="{{ name }}" {% if marcado %}checked{% endif %}><span>{{ label }}</span></label>
+{%- endmacro %}

@@ -1,0 +1,11 @@
+{% import "_macros.html" as ui %}
+{# Etapa 3 · Áreas e Locais. Cada bloco se re-renderiza sozinho ao receber o evento
+   HX-Trigger correspondente (disparado pelos CRUDs de área/local em cadastros.py). #}
+<div id="bs-areas" hx-get="/ui/bootstrap/passo3a" hx-trigger="recarregar-areas from:body"
+     hx-target="this" hx-swap="innerHTML">
+  {% include 'partials/passo3a.html' %}
+</div>
+<div id="bs-locais" hx-get="/ui/bootstrap/passo3b" hx-trigger="recarregar-locais from:body"
+     hx-target="this" hx-swap="innerHTML">
+  {% include 'partials/passo3b.html' %}
+</div>

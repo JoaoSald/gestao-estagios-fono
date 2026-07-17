@@ -1,0 +1,73 @@
+{% import "_macros.html" as ui %}
+<div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:1rem">
+  <div class="segmented">
+    {% for v, ic, label in [('lista','grid','Lista'),('calendario','calendar','Calendário')] %}
+    <button class="{{ 'active' if vista == v else '' }}"
+            hx-get="/ui/eventos/conteudo?vista={{ v }}" hx-target="#eventos-conteudo" hx-swap="innerHTML"
+            hx-push-url="/ui/eventos?vista={{ v }}">{{ ui.icon(ic) }}{{ label }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% if vista == 'calendario' %}
+  {% if cal %}{{ ui.calendario(cal) }}
+  {% else %}<div class="tbl-wrap"><div class="empty" style="padding:2rem"><span class="dim">Nenhum evento cadastrado.</span></div></div>{% endif %}
+{% else %}
+  {# item 19: eventos agrupados por ANO → MÊS → lista (estrutura do protótipo, estilo do sistema) #}
+  {# refetch reativo após criar/editar/remover evento (dispara 'recarregar-eventos') #}
+  <div hx-get="/ui/eventos/conteudo?vista=lista" hx-trigger="recarregar-eventos from:body"
+       hx-target="#eventos-conteudo" hx-swap="innerHTML" style="display:none"></div>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:.8rem">
+    <button class="btn btn-primary btn-sm" hx-get="/ui/eventos/form" hx-target="#modal-root" hx-swap="innerHTML">
+      {{ ui.icon('plus') }} Novo evento</button>
+  </div>
+
+  {% for ano in eventos_ano_mes %}
+    <section style="margin-bottom:1.3rem">
+      <div class="flex between" style="display:flex;align-items:center;gap:.55rem;margin:0 0 .5rem;padding-bottom:.4rem;border-bottom:2px solid var(--border)">
+        <h2 style="margin:0;font-size:1.15rem">{{ ano.ano }}</h2>
+        <span class="badge b-neutral">{{ ano.n }} evento(s)</span>
+      </div>
+
+      {% for mes in ano.meses %}
+        <div style="margin:.7rem 0 .35rem;display:flex;align-items:center;gap:.5rem">
+          <span class="hint" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">{{ mes.mes_nome }}</span>
+          <span class="dim" style="font-size:.78rem">· {{ mes.n }}</span>
+          <span style="flex:1;height:1px;background:var(--border)"></span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+        {% for e in mes.eventos %}
+          <div class="card" style="padding:.55rem .7rem">
+            <div class="flex between" style="display:flex;align-items:center;gap:.7rem">
+              {# bloco de data #}
+              <div style="text-align:center;min-width:3.1rem;line-height:1.05">
+                <div style="font-size:1.35rem;font-weight:800">{{ '%02d'|format(e.dia) }}</div>
+                <div class="dim" style="font-size:.68rem;text-transform:uppercase">{{ e.dow[:3] }}</div>
+              </div>
+              <div style="width:3px;align-self:stretch;border-radius:2px;background:{{ e.cor }}"></div>
+              {# nome + metadados #}
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:650">{{ e.nome }}</div>
+                <div class="hint" style="display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:.15rem">
+                  {{ ui.area_pill(e.tipo, e.cor) }}
+                  {% if e.multi %}<span class="dim">{{ e.periodo }}</span>{% endif %}
+                  {% if e.bloqueia %}<span class="badge b-risco"><span class="dt"></span>bloqueia estágio</span>{% else %}<span class="badge b-iniciar">não bloqueia</span>{% endif %}
+                  <span class="dim">· {{ e.origem }}</span>
+                </div>
+              </div>
+              {# ações #}
+              <div class="row-actions">
+                <button class="icon-btn" title="Editar" hx-get="/ui/eventos/{{ e.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+                <button class="icon-btn" title="Remover" hx-delete="/ui/eventos/{{ e.id }}" hx-target="#eventos-conteudo" hx-swap="innerHTML" hx-confirm="Remover o evento {{ e.nome }}?">{{ ui.icon('trash') }}</button>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+        </div>
+      {% endfor %}
+    </section>
+  {% else %}
+    <div class="tbl-wrap"><div class="empty" style="padding:2rem"><span class="dim">Nenhum evento cadastrado.</span></div></div>
+  {% endfor %}
+{% endif %}

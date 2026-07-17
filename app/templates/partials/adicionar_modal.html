@@ -1,0 +1,31 @@
+{% import "_macros.html" as ui %}
+<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-head"><h3>Adicionar aluno · {{ d.campo }}</h3>
+    <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
+  <div class="modal-body">
+    <p class="muted" style="margin-bottom:.9rem">Alunos matriculados em {{ ui.area_pill(d.area_nome, d.area_cor) }} que ainda aguardam vaga, por ordem de prioridade. A colocação nasce fixada (sobrevive à regeração) e só ocorre se couber sem conflito.</p>
+
+    {% if motivos %}
+    <div class="field-err" style="margin-bottom:.9rem;padding:.7rem .9rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">
+      <div style="display:flex;align-items:center;gap:.4rem;font-weight:700">{{ ui.icon('alert') }} Não deu para adicionar</div>
+      <ul style="margin:.4rem 0 0 1rem">{% for m in motivos %}<li>{{ m }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if not d.grupo_id %}
+      <div class="dim">Este local está lotado — sem grupo com vaga.</div>
+    {% else %}
+    <div class="flex flex-wrap" style="gap:.5rem">
+      {% for a in d.fila %}
+        <button class="btn btn-secondary" style="text-align:left;flex-direction:column;align-items:flex-start;gap:.15rem"
+          hx-post="/ui/estagios/adicionar" hx-target="#estagios-conteudo" hx-swap="innerHTML"
+          hx-vals='{"aluno_id": {{ a.aluno_id }}, "grupo_id": {{ d.grupo_id }}, "local": "{{ d.local_id }}"}'>
+          <span style="font-weight:700">{{ a.nome }}</span>
+          <span class="dim" style="font-size:.78rem">prioridade {{ a.ordenamento }}</span>
+        </button>
+      {% else %}<span class="dim">Ninguém aguardando vaga nesta área.</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div class="modal-foot"><button type="button" class="btn btn-secondary" data-close>Fechar</button></div>
+</div></div>

@@ -1,0 +1,9 @@
+{% import "_macros.html" as ui %}
+{% set edit = obj is not none %}
+{% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' preceptor',
+       '/ui/preceptores/' ~ obj.id if edit else '/ui/preceptores',
+       'put' if edit else 'post', erro, target='#tbody-preceptores') %}
+  {{ ui.campo('Nome', 'nome', obj.nome if edit else '', required=true) }}
+  {{ ui.campo('E-mail (conta do preceptor)', 'email', obj.email if edit else '', tipo='email', required=true) }}
+  {{ ui.campo_check('Ativo', 'ativo', obj.ativo if edit else true) }}
+{% endcall %}
