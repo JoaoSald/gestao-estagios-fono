@@ -133,7 +133,6 @@ app/
 alembic/               # migrações (env.py lê DATABASE_URL do .env)
 docs/                  # REGRAS_MOTOR_ESCALA.md, seed_v2.sql, modelagem_dados/
 scripts/               # seed.py
-tests/                 # pytest (conftest, factories, testes do motor e da API/UI)
 ```
 
 ### Conceitos do domínio
@@ -167,11 +166,5 @@ alembic revision --autogenerate -m "descricao"         # nova migração
 - **`docs/modelagem_dados/`** — schema canônico (`modelagem_dados_v2.sql`, DBML e
   `DOCUMENTACAO_MODELO_DADOS_V2.md`).
 - **`docs/seed_v2.sql`** — seed fonte da verdade (derivado do ESPELHO 2026).
-- **`CLAUDE.md`** — guia de trabalho no repositório.
 
 ---
-
-## Idioma
-
-Domínio, comentários, docstrings, identificadores e UI são em **Português (pt-BR)**.
-Mensagens de erro exibidas ao usuário também.
