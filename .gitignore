@@ -2,6 +2,7 @@
 .env
 teste.txt          # contas de teste do dev, com senha em texto puro
 contas.txt
+dados_teste_alunos.txt
 # Python
 __pycache__/
 *.py[cod]
