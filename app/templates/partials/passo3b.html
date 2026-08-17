@@ -1,8 +1,11 @@
 {% import "_macros.html" as ui %}
-{# ---- Etapa 3b · Locais (slots). Conteúdo re-renderizável (#bs-locais).
-     Ordem (item 6): (1) tabela de locais + cadastro, (2) painel de slots (resumo). ---- #}
+{# ---- Locais (slots) — 2ª seção do passo "Áreas e Locais". Conteúdo re-renderizável
+     (#bs-locais), então criar/editar/desativar local atualiza tabela, resumo, validador
+     e análise de uma vez.
+     Ordem: (1) tabela de locais + cadastro, (2) resumo de slots, (3) validador,
+     (4) análise da grade. ---- #}
 <div class="card"><div class="card-head">
-  <div><h3>Passo 3b · Locais (slots)</h3><div class="card-sub">Cada dia de um campo é um SLOT = 1 grupo que roda EM PARALELO com os outros dias. O nº de encontros vem de CH ÷ horas por encontro.</div></div>
+  <div><h3>Locais (slots)</h3><div class="card-sub">Cada dia de um campo é um SLOT = 1 grupo que roda EM PARALELO com os outros dias. O <b>nº de encontros</b> é o do espelho (você digita no cadastro do local); a carga total é calculada a partir dele. Eventos e afastamentos já estão definidos, então o validador abaixo já sabe quantas datas cada slot tem de fato.</div></div>
 </div><div class="card-body">
   {# (1) tabela grande de locais + cadastro #}
   {% set recurso = locais_tabela.recurso %}{% set colunas = locais_tabela.colunas %}{% set itens = locais_tabela.itens %}
@@ -11,13 +14,27 @@
 
   {# (2) painel de slots (resumo da oferta — consequência dos locais) #}
   <div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border)">
-    <div class="hint" style="font-weight:700;margin-bottom:.5rem">Slots ofertados no ciclo</div>
+    <div class="hint" style="font-weight:700;margin-bottom:.5rem">Slots ofertados no ciclo <span class="dim" style="font-weight:400">(por área e campo)</span></div>
     {% if locais_resumo %}
     <div class="scroll-y" style="max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem">
-      {% for r in locais_resumo %}<div class="hint">{{ ui.area_pill(r.nome, r.cor) }}: <b>{{ r.n }} slot(s)</b> → {{ r.n }} grupo(s) em paralelo · até <b>{{ r.cap }}</b> aluno(s)/leva · ~{{ r.enc }} encontros p/ concluir</div>{% endfor %}
+      {% include 'partials/slots_resumo.html' %}
     </div>
     {% else %}
     <div class="dim" style="font-size:.85rem">Nenhum slot ainda — cadastre um local acima.</div>
     {% endif %}
   </div>
+
+  {# (3) validador: este slot fecha grupo? edição do nº de encontros na própria linha #}
+  {% if validacao %}
+  <div class="diag-sec" id="validador-locais">
+    {% include 'partials/validador_locais.html' %}
+  </div>
+
+  {# (4) análise da grade: concentração, conflitos de horário e carga semanal #}
+  {% include 'partials/analise_grade.html' %}
+
+  {# O veredito por ALUNO ("todos conseguem fazer o ciclo?") NÃO fica aqui: neste passo
+     os alunos ainda não foram cadastrados, então a resposta seria sobre um conjunto
+     vazio. Ele vive só na Revisão, depois do passo de alunos. #}
+  {% endif %}
 </div></div>

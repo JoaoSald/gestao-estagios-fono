@@ -3,33 +3,33 @@
 // Modelagem relacional — VERSÃO 2 (agnóstica de SGBD)
 // Fiel à proposta de orquestração v2 e ao protótipo:
 // ciclo como máquina de estados, motor de alocação (alocacoes +
-// sessoes), afastamentos, indisponibilidades, eventos, remanejo,
-// histórico (snapshot) e autenticação.
+// sessoes), grupos (grade-primeiro), preceptores/cobertura,
+// afastamentos, indisponibilidades, eventos, remanejo, restrições
+// de local do aluno, histórico (snapshot) e autenticação.
 // ============================================================
 
-// ⚠️ SNAPSHOT HISTÓRICO — NÃO É A FONTE DE VERDADE DO SCHEMA.
-//   O schema real é dono do Alembic (app/models/ + alembic/versions/).
-//   Este arquivo é PRÉ-reestruturação e está defasado: aqui status_matricula é
-//   só em_andamento/concluida (o real tem também interrompida e incompleta),
-//   falta grupo_alunos.fixado, a fase_area é a antiga (5/6_7 vs 7/9_10) e a nota
-//   de intervalo (1h30) foi atualizada para 2h entre áreas no mesmo dia.
-//   Schema atual = migrations Alembic (última: f3b8c1d4e6a2) + REGRAS_MOTOR_ESCALA.md.
+// FONTE DE VERDADE: o schema real é dono do Alembic (app/models/ +
+//   alembic/versions/). Este DBML é o companion visual (dbdiagram) e o
+//   .sql é o companion DDL — mantidos em sincronia com os models.
+//   Última migration refletida aqui: 9fd4120b1555 (AR-7 docente nullable +
+//   AR-8 aluno.prioridade). Regras de motor/tela: docs/REGRAS_MOTOR_ESCALA.md.
 
 // ============================================================
 // REGRAS DE NEGÓCIO (v2 — fase/pré-requisito/carry-forward)
-//  1. Fase do ciclo: alunos do 5º semestre formam um MINI-CICLO que cursa
-//     SOMENTE Audiologia I. Alunos do 6º/7º cursam as demais áreas.
-//     Ambos convivem no mesmo ciclo (ciclos.id).
-//  2. Audiologia I é PRÉ-REQUISITO BLOQUEANTE: nenhuma matrícula em área de
-//     6/7 é alocada pelo motor sem Audiologia I concluída (areas.pre_requisito).
-//     Regra aplicada no motor de alocação (nível de aplicação).
-//  3. Carry-forward: todo aluno de 6/7 começa com Audiologia I concluída, e
-//     pode iniciar o ciclo com outras áreas já concluídas (cursadas antes).
-//     Isso é uma matrícula nascendo com status='concluida'; o motor só aloca
-//     as 'em_andamento', então as concluídas são puladas naturalmente.
-//  4. As 3 áreas Hospitalares (Pediatria+Adulto+Neonatologia) somam 160h.
-//     Carga por área na matriz: Aud.I 60 · MO 120 · Ling.Inf 160 · S.Coletiva
-//     160 · Aud.II 120 · LAD 80 · Voz 80 · Hosp(50/60/50).
+//  1. Fase do ciclo: alunos do 7º semestre formam um MINI-CICLO que cursa
+//     SOMENTE Audiologia I (fase '7'). Alunos do 9º/10º cursam as demais
+//     áreas (fase '9_10'). Ambos convivem no mesmo ciclo (ciclos.id).
+//  2. Audiologia I é PRÉ-REQUISITO (areas.pre_requisito) das áreas de 9/10:
+//     responsabilidade compartilhada, conferida pela coordenação.
+//  3. Carry-forward: aluno de 9/10 começa com Audiologia I concluída, e pode
+//     iniciar o ciclo com outras áreas já concluídas (cursadas antes). Isso é
+//     uma matrícula nascendo com status='concluida'; o motor só aloca as
+//     'em_andamento', então as concluídas são puladas naturalmente. Uma
+//     matrícula pode fechar o período com feitos < N -> status='incompleta'
+//     (carry-forward para o próximo ciclo; grade-primeiro §10.5).
+//  4. Carga por área na matriz (matriz curricular). As áreas COMPOSTAS
+//     (Audiologia II, Hospitalar) são containers: a CH da mãe = soma das
+//     sub-áreas; matrícula e conclusão são POR SUB-ÁREA (leaf).
 //  5. RESPONSÁVEIS DO LOCAL / COBERTURA: cada local tem um docente (UFCSPA) e,
 //     opcionalmente, um PRECEPTOR de campo. O preceptor pode ser externo
 //     (catálogo preceptores) OU um docente (referência polimórfica
@@ -43,13 +43,16 @@
 //     condição especial). O motor pula esses locais ao alocar o aluno — que
 //     segue cursando a área em outro local liberado. Não pode sobrar área
 //     matriculada em_andamento sem nenhum local liberado (validação de aplicação).
-//  7. GRUPOS (ondas por local): a capacidade do local = tamanho do grupo. O grupo
-//     atual (onda 1) são os alunos alocados; as ondas seguintes são projetadas da
-//     fila da área (por ordenamento), em cascata — cada onda começa quando a
-//     anterior daquele local conclui. Matrícula feita no meio do ciclo cai na fila
-//     e é remanejada para um grupo futuro. Grupos são materializados (grupos +
-//     grupo_alunos) e regerados a cada geração/remanejo — são PROJEÇÃO até o motor
-//     confirmar. Conflito de dia/turno num grupo previsto vira aviso no membro.
+//  7. GRUPOS (ondas por local — grade-primeiro): a capacidade do local = tamanho
+//     do grupo. O molde de TODOS os grupos do ciclo é MATERIALIZADO no bootstrap
+//     (datas = infraestrutura: dia fixo, pulando feriado/sem-cobertura, em blocos
+//     de N = teto(carga / horas_sessao)) e é a FONTE DE VERDADE. onda 1 = grupo
+//     atual; 2,3… = previstos (cascata: cada onda começa quando a anterior do
+//     local conclui; com passagem_grupo, no último dia da anterior). Membro
+//     grupo_alunos.fixado sobrevive à regeração (remanejo manual da coordenação).
+//  8. MESMO DIA: sem sobreposição de horário + intervalo mínimo de 1h30 entre
+//     áreas no mesmo dia (verificado com dia_semana/hora_inicio/hora_fim; áreas
+//     diferentes PODEM dividir o dia, inclusive o mesmo turno). Teto de 30h/semana.
 // ============================================================
 
 // ---------- ENUMS ----------
@@ -61,8 +64,8 @@ Enum turno_tipo {
 }
 
 Enum fase_area {
-  "5"     // 5º semestre (mini-ciclo): Audiologia I
-  "6_7"   // 6º/7º semestre: demais estágios
+  "7"      // 7º semestre (mini-ciclo): só Audiologia I
+  "9_10"   // 9º/10º semestre: demais estágios
 }
 
 Enum dia_semana_tipo {
@@ -84,6 +87,8 @@ Enum status_ciclo {
 Enum status_matricula {
   "em_andamento"
   "concluida"
+  "interrompida"   // aluno parou por motivo extraordinário (§6.1)
+  "incompleta"     // período da caixa fechou com feitos < N -> carry-forward (§10.5)
 }
 
 Enum status_alocacao {
@@ -97,6 +102,11 @@ Enum status_sessao {
   "cumprida"
   "remanejada"
   "cancelada"
+}
+
+Enum status_grupo {
+  "em_andamento"   // onda atual (alunos hoje alocados no local)
+  "previsto"       // onda futura projetada a partir da fila
 }
 
 Enum tipo_afastamento {
@@ -134,7 +144,8 @@ Enum situacao_historico {
 Enum perfil_usuario {
   "administrador"
   "coordenacao"
-  "consulta"
+  "docente"
+  "aluno"
 }
 
 // ============================================================
@@ -151,7 +162,7 @@ Table ciclos [headercolor: #16a085] {
   criado_em             timestamp
   encerrado_em          timestamp
 
-  Note: 'Espinha dorsal da orquestração. Só um ciclo rascunho OU em_andamento por vez. rascunho -> em_andamento ao confirmar o bootstrap; em_andamento -> encerrado no fim do ano.'
+  Note: 'Espinha dorsal da orquestração. Só um ciclo rascunho OU em_andamento por vez (invariante de aplicação). rascunho -> em_andamento ao confirmar o bootstrap; em_andamento -> encerrado no fim do ano.'
 }
 
 // ============================================================
@@ -162,11 +173,13 @@ Table areas [headercolor: #3498db] {
   id              int          [pk, increment]
   nome            varchar      [not null, unique, note: 'Ex.: Audiologia I, Motricidade Orofacial, LAD (Linguagem do Adulto/Idoso)']
   cor             varchar(7)   [note: 'Cor (#hex) da pílula/badge da área na UI']
-  carga_exigida   int          [not null, note: 'Horas obrigatórias para concluir a área (matriz curricular)']
-  fase            fase_area    [not null, default: '6_7', note: 'Fase do curso: 5 (mini-ciclo, só Audiologia I) ou 6_7 (demais)']
-  pre_requisito   boolean      [not null, default: false, note: 'True só em Audiologia I: bloqueia a alocação das áreas de 6/7 enquanto não concluída']
+  carga_exigida   int          [not null, note: 'Horas obrigatórias para concluir a área/sub-área (matriz curricular). Validação: > 0']
+  fase            fase_area    [not null, default: '9_10', note: 'Fase do curso: 7 (mini-ciclo, só Audiologia I) ou 9_10 (demais)']
+  pre_requisito   boolean      [not null, default: false, note: 'True só em Audiologia I: responsabilidade compartilhada p/ as áreas de 9/10. Índice único parcial: no máximo UMA área pré-requisito.']
+  composta        boolean      [not null, default: false, note: 'Área-mãe/container (ex.: Audiologia II, Hospitalar): NÃO é matriculável nem alocável (sem locais). O aluno cursa as SUB-ÁREAS (leaf).']
+  area_mae_id     int          [ref: > areas.id, note: 'Sub-área: FK self para a área-mãe composta. Área simples ou mãe = NULL. A CH da mãe = soma das CHs das sub-áreas; matrícula/conclusão são por sub-área.']
 
-  Note: 'Catálogo fixo das áreas do curso (10 na v2). Independe de ciclo — já vem pré-cadastrado. As 3 Hospitalares somam 160h.'
+  Note: 'Catálogo fixo das áreas do curso. Independe de ciclo — já vem pré-cadastrado. Áreas compostas agregam sub-áreas (Audiologia II, Hospitalar).'
 }
 
 Table docentes [headercolor: #3498db] {
@@ -197,9 +210,9 @@ Table alunos [headercolor: #27ae60] {
   nome          varchar    [not null]
   matricula     varchar    [not null]
   email         varchar    [note: 'Destino das notificações do sistema (padrão matricula@aluno.ufcspa.edu.br)']
-  semestre      int        [note: 'Semestre atual. <=5 => fase 5 (mini-ciclo Audiologia I); >=6 => fase 6/7']
-  ordenamento   int        [not null, note: 'Ordem de alocação — menor = maior prioridade. DERIVADA (AR-8): prioridade primeiro, depois matrícula — não é mais ordenação manual']
-  prioridade    boolean    [not null, default: false, note: 'AR-8: marcado no bootstrap p/ posicionar o aluno à mão na Montagem dos grupos (migration 9fd4120b1555 aplicada)']
+  semestre      int        [note: 'Semestre atual. 7 => fase 7 (mini-ciclo Audiologia I); 9/10 => fase 9_10 (demais)']
+  ordenamento   int        [not null, note: 'Ordem de alocação — menor = maior prioridade. DERIVADA (AR-8): por fase, prioritários primeiro, depois por matrícula — não é mais ordenação manual']
+  prioridade    boolean    [not null, default: false, note: 'AR-8: marcado no bootstrap p/ POSICIONAR o aluno à mão na Montagem dos grupos (o motor honra a colocação/pin)']
   criado_em     timestamp
 
   Indexes {
@@ -218,11 +231,13 @@ Table matriculas [headercolor: #27ae60] {
   status                    status_matricula   [not null, default: 'em_andamento']
   data_conclusao_prevista   date               [note: 'Calculada pelo motor: data da última sessão que fecha a carga']
   data_conclusao            date               [note: 'Preenchida quando dia atual >= previsão e carga fechada']
+  motivo_interrupcao        varchar            [note: 'Interrupção do estágio (desmatrícula por motivo extraordinário) — §6.1']
+  data_interrupcao          date               [note: 'Data da interrupção (status=interrompida)']
 
   Indexes {
     (aluno_id, area_id) [unique, name: 'uq_matricula_aluno_area']
   }
-  Note: 'Diz O QUE o aluno cursa. Área do catálogo sem matrícula = estado "a iniciar" (derivado). Conclusão é automática, nunca check manual. CARRY-FORWARD: pode nascer com status=concluida (área já cursada em ciclo/semestre anterior — ex.: Audiologia I dos alunos de 6/7). PRÉ-REQUISITO: o motor não aloca matrícula de área com pre_requisito=false enquanto a área pre_requisito (Audiologia I) do mesmo aluno não estiver concluida.'
+  Note: 'Diz O QUE o aluno cursa (por sub-área quando a área é composta). Área do catálogo sem matrícula = estado "a iniciar" (derivado). Conclusão é automática (por encontros feitos), nunca check manual. CARRY-FORWARD: pode nascer com status=concluida (área já cursada antes) ou fechar o período com incompleta. PRÉ-REQUISITO: Audiologia I é responsabilidade compartilhada das áreas de 9/10.'
 }
 
 // Restrições de local do aluno (BLOCKLIST): por padrão o aluno está disponível
@@ -236,11 +251,11 @@ Table restricoes_aluno_local [headercolor: #27ae60] {
   Indexes {
     (aluno_id, local_id) [unique, name: 'uq_restricao_aluno_local']
   }
-  Note: 'Blocklist aluno × local. Ausência de linha = disponível (padrão). Granularidade por LOCAL — o aluno segue cursando a área em outro local liberado. Validação (aplicação): não deixar uma área matriculada em_andamento sem nenhum local liberado.'
+  Note: 'Blocklist aluno × local. Ausência de linha = disponível (padrão). Granularidade por LOCAL — o aluno segue cursando a área em outro local liberado. Validação (aplicação): não deixar uma área matriculada em_andamento sem nenhum local liberado. FKs com ON DELETE CASCADE.'
 }
 
 // ============================================================
-// LOCAIS DE ESTÁGIO  (cenário: área + campo + docente + horário)
+// LOCAIS DE ESTÁGIO  (SLOT: 1 local = 1 campo + dia + turno)
 // ============================================================
 
 Table locais [headercolor: #e67e22] {
@@ -249,34 +264,21 @@ Table locais [headercolor: #e67e22] {
   area_id        int               [not null, ref: > areas.id]
   unidade        varchar           [note: 'Unidade concedente do espelho: SMS, Santa Casa (HSCL/HCSA), GHC, UFCSPA, Frei Pacífico, Rádio Guaíba…']
   campo          varchar           [not null, note: 'Cenário físico (texto): AMB. IAPI, UTI Neonatal, Coral, Clínica…']
-  docente_id     int               [ref: > docentes.id, note: 'Docente responsável (UFCSPA). AR-7: passa a NULLABLE — o slot pode nascer sem docente e recebê-lo em Configurações de campo (migration 9fd4120b1555 aplicada)']
+  docente_id     int               [ref: > docentes.id, note: 'Docente responsável (UFCSPA). AR-7: NULLABLE — o slot pode nascer sem docente e recebê-lo em Configurações de campo (migration 9fd4120b1555). "Todo local ativo tem docente" vira validação antes de gerar a escala.']
   preceptor_tipo varchar           [note: "Tipo do preceptor de campo: 'externo' (ref preceptores) | 'docente' (ref docentes) | null (sem preceptor separado, só o docente responde)"]
-  preceptor_id   int               [note: 'Preceptor de campo (opcional). FK polimórfica resolvida por preceptor_tipo: preceptores.id quando externo, docentes.id quando docente. Ex.: o próprio docente do local ou outro professor pode ser o preceptor.']
-  dia_semana     dia_semana_tipo   [not null, note: 'Dia principal. Cenários multi-dia adicionam os demais em locais_dias']
+  preceptor_id   int               [note: 'Preceptor de campo (opcional). FK POLIMÓRFICA resolvida por preceptor_tipo: preceptores.id quando externo, docentes.id quando docente. CHECK ck_local_preceptor: ambos nulos OU (tipo válido E id não-nulo).']
+  dia_semana     dia_semana_tipo   [not null, note: 'Modelo SLOT: 1 local = 1 (campo+dia+turno). Um campo pode ter N slots (dias/turnos distintos, inclusive o mesmo dia em turnos diferentes) que rodam em paralelo.']
   turno          turno_tipo        [not null]
-  hora_inicio       time           [not null, note: 'Usados no conflito de horário e no intervalo mínimo de 1h30']
-  hora_fim          time           [not null]
-  capacidade        int            [not null, note: 'Vagas simultâneas (grupo_aluno). Validação: > 0']
-  carga_horaria     int            [not null, note: 'Horas que o estágio nesse local cobre']
-  numero_encontros  int            [not null, note: 'Nº de encontros do cenário (coluna do ESPELHO) = TOTAL fixo do contador de encontros. O motor agenda exatamente esse nº de sessões']
-  passagem_grupo    boolean        [not null, default: false, note: 'PASSAGEM DE GRUPO: se true, o último encontro de um grupo é o primeiro do próximo (1 dia de sobreposição). Na projeção de grupos, a onda seguinte começa no último dia da anterior; se false, começa depois.']
+  hora_inicio       time           [not null, note: 'Usados na sobreposição de horário e no intervalo mínimo de 1h30 entre áreas no mesmo dia']
+  hora_fim          time           [not null, note: 'Validação: hora_fim > hora_inicio']
+  capacidade        int            [not null, note: 'Vagas simultâneas = tamanho do grupo (antigo grupo_aluno). Validação: > 0']
+  carga_horaria     int            [not null, note: 'Horas que o estágio nesse local cobre (consequência dos encontros × duração)']
+  horas_sessao      float          [note: 'Horas REAIS de cada encontro (desconta almoço no integral). Base do numero_encontros e do teto de 30h/semana.']
+  numero_encontros  int            [not null, note: 'Nº de encontros do cenário = teto(carga_horaria / horas_sessao). TOTAL fixo do contador; o motor agenda exatamente esse nº de sessões.']
+  passagem_grupo    boolean        [not null, default: false, note: 'PASSAGEM DE GRUPO: se true, o último encontro de um grupo é o primeiro do próximo (1 dia de sobreposição). Na cascata de grupos, a onda seguinte começa no último dia da anterior; se false, começa depois.']
   ativo             boolean        [not null, default: true]
 
-  Note: 'Cenário de prática de um ciclo. Desativar em andamento dispara remanejo. Alguns cenários ocorrem em mais de um dia da semana (ver locais_dias). COBERTURA: para um encontro acontecer numa data basta que UM dos responsáveis do local (docente OU preceptor de campo) esteja disponível; o encontro só cai quando docente E preceptor estiverem afastados ao mesmo tempo. Local sem preceptor (preceptor_id null) depende só do docente.'
-}
-
-// Dias adicionais de um local multi-dia (ex.: Aud.II SM "2ª e 3ª", Hosp.Ped
-// "3ª e 4ª", Aud.I "3ª/5ª/6ª"). O dia principal fica em locais.dia_semana; os
-// demais entram aqui. No protótipo isso é o array `dias` do local.
-Table locais_dias [headercolor: #e67e22] {
-  id          int               [pk, increment]
-  local_id    int               [not null, ref: > locais.id]
-  dia_semana  dia_semana_tipo   [not null]
-
-  Indexes {
-    (local_id, dia_semana) [unique, name: 'uq_local_dia']
-  }
-  Note: 'Um local pode ocorrer em N dias da semana. O motor da v2 usa o dia principal; a implementação plena itera todos os dias.'
+  Note: 'Cenário de prática (SLOT) de um ciclo. Desativar em andamento dispara remanejo. COBERTURA: para um encontro acontecer numa data basta que UM dos responsáveis do local (docente OU preceptor de campo) esteja disponível; o encontro só cai quando docente E preceptor estiverem afastados ao mesmo tempo. Local sem preceptor (preceptor_id null) depende só do docente.'
 }
 
 Table indisponibilidades_local [headercolor: #9b59b6] {
@@ -284,7 +286,7 @@ Table indisponibilidades_local [headercolor: #9b59b6] {
   local_id     int      [not null, ref: > locais.id, note: 'Um local pode ter n períodos indisponíveis']
   motivo       varchar
   data_inicio  date     [not null]
-  data_fim     date     [not null]
+  data_fim     date     [not null, note: 'Validação: data_fim >= data_inicio']
 
   Note: 'Só existe na Operação (não no bootstrap). Ao fim do período o local volta a valer sozinho.'
 }
@@ -328,14 +330,8 @@ Table sessoes [headercolor: #e67e22] {
 }
 
 // ============================================================
-// GRUPOS  (ondas por local — o grupo atual + os previstos)
-//   Materializados: regerados a cada geração/remanejo/abertura da tela.
+// GRUPOS  (ondas por local — molde grade-primeiro materializado no bootstrap)
 // ============================================================
-
-Enum status_grupo {
-  "em_andamento"   // onda atual (alunos hoje alocados no local)
-  "previsto"       // onda futura projetada a partir da fila
-}
 
 Table grupos [headercolor: #e67e22] {
   id            int           [pk, increment]
@@ -344,10 +340,10 @@ Table grupos [headercolor: #e67e22] {
   area_id       int           [not null, ref: > areas.id, note: 'Derivável do local; guardado por conveniência da projeção']
   onda          int           [not null, note: '1 = grupo atual; 2,3… = ondas seguintes (cascata)']
   status        status_grupo  [not null]
-  data_inicio   date          [not null, note: 'Onda previsão: começa quando a onda anterior do local conclui']
+  data_inicio   date          [not null, note: 'Onda prevista: começa quando a onda anterior do local conclui']
   data_fim      date          [not null, note: 'Início + duração dos encontros (previsão)']
 
-  Note: 'Uma onda de alunos ocupando um local numa janela. Capacidade do local = tamanho do grupo. Grupo previsto é PROJEÇÃO (como a fila): só vira escala quando o motor regenera. No protótipo é a coleção derivada `grupos` com membros embutidos.'
+  Note: 'Uma onda de alunos ocupando um local numa janela ("caixa"). Capacidade do local = tamanho do grupo. GRADE-PRIMEIRO: o molde de TODOS os grupos do ciclo é materializado no bootstrap (datas = infraestrutura) e é a FONTE DE VERDADE; a onda em andamento tem datas comprometidas, as previstas re-derivam. FKs ciclo/local com ON DELETE CASCADE.'
 }
 
 Table grupo_alunos [headercolor: #e67e22] {
@@ -355,10 +351,12 @@ Table grupo_alunos [headercolor: #e67e22] {
   grupo_id  int      [not null, ref: > grupos.id]
   aluno_id  int      [not null, ref: > alunos.id]
   aviso     varchar  [note: 'Dependência/conflito: ex. "entra ao concluir Voz (previsto 15/09)". Nulo quando entra sem conflito.']
+  fixado    boolean  [not null, default: false, note: 'Remanejo manual da coordenação: quando true, o motor NÃO remove nem realoca este membro numa regeração (§9.1 — migration f3b8c1d4e6a2)']
 
   Indexes {
     (grupo_id, aluno_id) [unique, name: 'uq_grupo_aluno']
   }
+  Note: 'Membro de um grupo. FKs grupo/aluno com ON DELETE CASCADE.'
 }
 
 // ============================================================
@@ -368,15 +366,15 @@ Table grupo_alunos [headercolor: #e67e22] {
 Table afastamentos [headercolor: #9b59b6] {
   id            int                [pk, increment]
   ciclo_id      int                [ref: > ciclos.id]
-  docente_id    int                [ref: > docentes.id, note: 'Preenchido quando o afastamento é de um docente (exclusivo com preceptor_id)']
-  preceptor_id  int                [ref: > preceptores.id, note: 'Preenchido quando o afastamento é de um preceptor (exclusivo com docente_id)']
+  docente_id    int                [ref: > docentes.id, note: 'Preenchido quando o afastamento é de um docente (XOR com preceptor_id)']
+  preceptor_id  int                [ref: > preceptores.id, note: 'Preenchido quando o afastamento é de um preceptor (XOR com docente_id)']
   tipo          tipo_afastamento   [not null, default: 'ferias']
   motivo        varchar            [note: 'Texto livre: "congresso X", "atestado médico"…']
   data_inicio   date               [not null]
   data_retorno  date               [not null, note: 'Validação: data_retorno >= data_inicio']
   criado_em     timestamp          [note: 'Auditoria: distingue o que foi bootstrap do que foi ajuste no meio do ciclo']
 
-  Note: 'Tabela genérica de ausências (substitui a antiga tela isolada de Férias). Cada registro referencia UMA pessoa: docente_id OU preceptor_id (a outra fica null). Inclusão/edição em andamento dispara remanejo. Obs.: quando o preceptor de um local é um docente (locais.preceptor_tipo=docente), a ausência dele é registrada como afastamento de docente.'
+  Note: 'Tabela genérica de ausências (substitui a antiga tela isolada de Férias). CHECK ck_afast_pessoa: cada registro referencia EXATAMENTE UMA pessoa — docente_id XOR preceptor_id. Inclusão/edição em andamento dispara remanejo. Obs.: quando o preceptor de um local é um docente (locais.preceptor_tipo=docente), a ausência dele é registrada como afastamento de docente.'
 }
 
 Table eventos [headercolor: #9b59b6] {
@@ -429,7 +427,7 @@ Table historico [headercolor: #34495e] {
   ano                  int                  [not null, note: 'Chave de navegação da tela de Histórico (2026 · 2025…)']
   aluno_nome           varchar              [not null, note: 'Cópia (snapshot), não FK — o aluno pode ser editado/removido depois']
   matricula            varchar              [note: 'Cópia (snapshot)']
-  areas                json                 [note: 'Array por área: {nome, carga_exigida, horas_cumpridas, data_conclusao} — inclui as não concluídas']
+  areas                json                 [note: 'Array por área/sub-área: {nome, carga_exigida, horas_cumpridas, data_conclusao} — inclui as não concluídas. Persistido como JSONB.']
   carga_horaria_total  int                  [note: 'Soma das horas cumpridas no ciclo']
   situacao             situacao_historico   [not null, note: 'ciclo_completo (todas as áreas da fase concluídas) | pendente']
   encerramento         date
@@ -447,7 +445,7 @@ Table usuarios [headercolor: #7f8c8d] {
   nome        varchar          [not null]
   email       varchar          [not null, unique]
   senha_hash  varchar          [not null]
-  perfil      perfil_usuario   [not null, default: 'consulta']
+  perfil      perfil_usuario   [not null, default: 'aluno']
   ativo       boolean          [not null, default: true]
   created_at  timestamp
 
@@ -476,7 +474,6 @@ TableGroup alunos_grp [color: #27ae60] {
 
 TableGroup estagio_grp [color: #e67e22] {
   locais
-  locais_dias
   alocacoes
   sessoes
   grupos

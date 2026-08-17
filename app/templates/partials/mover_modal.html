@@ -3,7 +3,7 @@
   <div class="modal-head"><h3>Mover {{ d.aluno_nome }} para…</h3>
     <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
   <div class="modal-body">
-    <p class="muted" style="margin-bottom:.9rem">{{ descricao }} O sistema só move se couber sem conflito de dia/turno, sem estourar 30h e com vaga — senão explica o motivo e sugere a alternativa mais cedo possível.</p>
+    <p class="muted" style="margin-bottom:.9rem">{{ descricao }} O sistema só move se couber sem sobreposição de horário, com ≥1h30 entre áreas no mesmo dia, sem estourar 30h e com vaga — senão explica o motivo e sugere a alternativa mais cedo possível.</p>
 
     {% if motivos %}
     <div class="field-err" style="margin-bottom:.9rem;padding:.7rem .9rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">

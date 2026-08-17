@@ -11,6 +11,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.rotulos import rotulo
 from app.models.aluno import Aluno, Matricula
 from app.models.catalogo import Area, Docente
 from app.models.ciclo import Ciclo
@@ -53,10 +54,15 @@ def contexto_base(db: Session):
 
 
 # ------------------------------- Por aluno -------------------------------
-def dados_por_aluno(db: Session, ciclo: Ciclo, fase: str = "todos") -> list[dict]:
+def dados_por_aluno(db: Session, ciclo: Ciclo, fase: str = "todos") -> dict:
     """Item 6: agrupado por ALUNO (accordion). Inclui as áreas alocadas E as áreas
     em andamento SEM vaga (aluno matriculado que não conseguiu grupo), com o motivo.
-    `fase`: 'todos' | '7' | '9_10' (filtro por semestre, item 3)."""
+    `fase`: 'todos' | '7' | '9_10' (filtro por semestre, item 3).
+
+    Devolve `{"linhas": [...], "totais": {"todos": n, "7": n, "9_10": n}}` — os totais
+    são de TODOS os alunos com estágio no ciclo (não do filtro ativo), para o rótulo de
+    cada aba de semestre.
+    """
     from app.services.common import fase_do_aluno
     alunos, areas, docentes, locais = _maps(db, ciclo)
     por_aluno: dict[int, dict] = {}
@@ -84,7 +90,7 @@ def dados_por_aluno(db: Session, ciclo: Ciclo, fase: str = "todos") -> list[dict
         _ensure(al)["areas"].append({
             "area_nome": ar.nome if ar else "?", "area_cor": ar.cor if ar else None,
             "campo": lc.campo, "docente": doc.nome if doc else "",
-            "dia": lc.dia_semana.value, "turno": lc.turno.value,
+            "dia": rotulo(lc.dia_semana), "turno": rotulo(lc.turno),
             "hora_inicio": lc.hora_inicio, "hora_fim": lc.hora_fim,
             "cumpr": cumpr, "total": total, "conclusao": a.data_fim_prevista,
             "situacao": situacao, "motivo": None,
@@ -106,16 +112,22 @@ def dados_por_aluno(db: Session, ciclo: Ciclo, fase: str = "todos") -> list[dict
             "area_nome": ar.nome if ar else "?", "area_cor": ar.cor if ar else None,
             "campo": None, "docente": "", "dia": None, "turno": None,
             "hora_inicio": None, "hora_fim": None, "cumpr": 0, "total": 0,
-            "conclusao": None, "situacao": "aguardando", "motivo": "sem vaga no ciclo",
+            # "sem vaga" seria chute: aqui só se sabe que não há alocação ativa, e a causa
+            # pode ter sido conflito de horário com vaga sobrando na área. A causa apurada
+            # mora no relatório da geração (`Aguardando.tipo`), não neste retrato do banco.
+            "conclusao": None, "situacao": "aguardando", "motivo": "não coube neste ciclo",
         })
 
     for row in por_aluno.values():
         row["areas"].sort(key=lambda x: x["area_nome"])
         row["aguardando"] = sum(1 for x in row["areas"] if x["situacao"] == "aguardando")
     res = sorted(por_aluno.values(), key=lambda r: r["aluno_nome"])
+    totais = {"todos": len(res), "7": 0, "9_10": 0}
+    for r in res:
+        totais[fase_do_aluno(r["semestre"]).value] += 1
     if fase != "todos":  # filtro por semestre (item 3)
         res = [r for r in res if fase_do_aluno(r["semestre"]).value == fase]
-    return res
+    return {"linhas": res, "totais": totais}
 
 
 # ------------------------------- Grupos -------------------------------
@@ -165,21 +177,29 @@ def dados_grupos(db: Session, ciclo: Ciclo, area_sel: str | None = None) -> dict
             if not lc:
                 continue
             ondas = []
-            for g in sorted(gs, key=lambda x: x.onda):
+            gs_ord = sorted(gs, key=lambda x: x.onda)
+            for idx, g in enumerate(gs_ord):
                 membros = [{"nome": alunos[m.aluno_id].nome if m.aluno_id in alunos else "?",
                             "aluno_id": m.aluno_id, "fixado": m.fixado, "aviso": m.aviso,
                             "ordenamento": alunos[m.aluno_id].ordenamento if m.aluno_id in alunos else None}
                            for m in g.membros]
+                # Passagem de grupo: o início desta onda coincide com o fim da anterior
+                # (e/ou o fim coincide com o início da próxima) — o dia da passagem.
+                ant = gs_ord[idx - 1] if idx > 0 else None
+                prox = gs_ord[idx + 1] if idx + 1 < len(gs_ord) else None
                 ondas.append({
                     "onda": g.onda, "previsto": g.data_inicio > hoje,
                     "data_inicio": g.data_inicio, "data_fim": g.data_fim,
                     "cap": lc.capacidade, "ocup": len(membros), "cheia": len(membros) >= lc.capacidade,
                     "membros": membros,
+                    "passagem_inicio": bool(lc.passagem_grupo and ant and ant.data_fim == g.data_inicio),
+                    "passagem_fim": bool(lc.passagem_grupo and prox and prox.data_inicio == g.data_fim),
                 })
             locs.append({"local_id": lid, "campo": lc.campo, "unidade": lc.unidade,
-                         "dia": lc.dia_semana.value, "turno": lc.turno.value,
+                         "dia": rotulo(lc.dia_semana), "turno": rotulo(lc.turno),
                          "hora_inicio": lc.hora_inicio, "hora_fim": lc.hora_fim,
-                         "cap": lc.capacidade, "numero_encontros": lc.numero_encontros, "ondas": ondas})
+                         "cap": lc.capacidade, "numero_encontros": lc.numero_encontros,
+                         "passagem_grupo": lc.passagem_grupo, "ondas": ondas})
         areas_lista.append({"id": aid, "nome": ar.nome if ar else "?", "cor": ar.cor if ar else None,
                             "locais": locs, "sem_vaga": _sem_vaga_area(db, ciclo, alunos, aid)})
 
@@ -290,7 +310,7 @@ def destinos_mover_campo(db: Session, ciclo: Ciclo, aluno_id: int, grupo_origem:
         ocup = _ocup_grupo(g)
         destinos.append({"grupo_id": g.id, "rotulo": lc.campo, "onda": g.onda,
                          "ocup": ocup, "cap": lc.capacidade, "vaga": ocup < lc.capacidade,
-                         "sub": f"{lc.dia_semana.value} · {lc.turno.value} · {ocup}/{lc.capacidade}"})
+                         "sub": f"{rotulo(lc.dia_semana)} · {rotulo(lc.turno)} · {ocup}/{lc.capacidade}"})
     destinos.sort(key=lambda d: d["rotulo"])
     ar = areas.get(g0.area_id)
     return {"aluno_id": aluno_id, "aluno_nome": alunos[aluno_id].nome if aluno_id in alunos else "?",
@@ -362,6 +382,7 @@ def chips_por_campo(db: Session, ciclo: Ciclo, local: Local) -> dict[date, list[
         for m in g.membros:
             onda_de[m.aluno_id] = g.onda
     chips: dict[date, dict[int, dict]] = {}
+    datas_por_onda: dict[int, set[date]] = {}
     alocs = db.scalars(select(Alocacao).where(
         Alocacao.local_id == local.id, Alocacao.status != StatusAlocacao.cancelada)).all()
     for a in alocs:
@@ -374,8 +395,18 @@ def chips_por_campo(db: Session, ciclo: Ciclo, local: Local) -> dict[date, list[
             g["n"] += 1
             if s.status != StatusSessao.cumprida:
                 g["cumprida"] = False
+            datas_por_onda.setdefault(onda, set()).add(s.data)
+    # Dias de PASSAGEM DE GRUPO: com passagem_grupo, ondas consecutivas compartilham 1 dia
+    # (último encontro de uma = 1º da seguinte). O dia compartilhado é a interseção das datas.
+    passagem_dias: set[date] = set()
+    if local.passagem_grupo:
+        for o in datas_por_onda:
+            if (o + 1) in datas_por_onda:
+                passagem_dias |= datas_por_onda[o] & datas_por_onda[o + 1]
     out: dict[date, list[dict]] = {}
     for dia, ondas in chips.items():
-        out[dia] = [{"kind": "sess", "label": f"G{o} ·{v['n']}", "cor": v["cor"], "esmaece": not v["cumprida"]}
+        eh_passagem = dia in passagem_dias
+        out[dia] = [{"kind": "sess", "label": f"G{o} ·{v['n']}", "cor": v["cor"],
+                     "esmaece": not v["cumprida"], "passagem": eh_passagem, "contorno": eh_passagem}
                     for o, v in sorted(ondas.items())]
     return out

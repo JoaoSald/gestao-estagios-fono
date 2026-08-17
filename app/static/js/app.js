@@ -98,6 +98,18 @@
     if (vazio) vazio.style.display = (visiveis === 0 && termo) ? '' : 'none';
   };
 
+  // ---- Validador de locais: atalho do nº sugerido -------------------------
+  // Não há filtro no cliente: o painel já vem só com os locais a resolver.
+  // ↧ usar N: preenche o input de encontros da MESMA linha e salva.
+  window.usarSugerido = function (btn, n) {
+    var td = btn.closest('td');
+    var input = td && td.querySelector('input[name=numero_encontros]');
+    if (!input) return;
+    input.value = n;
+    var form = input.closest('form');
+    if (form && window.htmx) window.htmx.trigger(form, 'submit');
+  };
+
   // ---- Filtro de locais na Revisão (etapa 10): mostra só as caixas do local -----
   window.filtrarGruposLocal = function (sel) {
     var v = sel.value;

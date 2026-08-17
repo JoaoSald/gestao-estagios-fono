@@ -16,6 +16,25 @@ def listar(db: Session) -> list[Area]:
     return list(db.scalars(select(Area).order_by(Area.nome)).all())
 
 
+def nome_completo(area: Area, areas_map: dict[int, Area]) -> str:
+    """Rótulo "Mãe - Sub" para sub-áreas; simples/mãe = o próprio nome.
+
+    Mora aqui (e não na camada de UI) porque serviços também precisam do rótulo —
+    `analise_grade` monta tabelas por área sem passar por router.
+    """
+    if area.area_mae_id and area.area_mae_id in areas_map:
+        return f"{areas_map[area.area_mae_id].nome} - {area.nome}"
+    return area.nome
+
+
+def cor_efetiva(area: Area, areas_map: dict[int, Area]) -> str | None:
+    """Cor do catálogo; sub-área sem cor própria herda a da mãe (padrão da UI)."""
+    if area.cor:
+        return area.cor
+    mae = areas_map.get(area.area_mae_id) if area.area_mae_id else None
+    return mae.cor if mae else None
+
+
 def obter(db: Session, area_id: int) -> Area:
     return common.obter_ou_404(db, Area, area_id, "Área")
 

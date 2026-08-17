@@ -1,0 +1,117 @@
+{% import "_macros.html" as ui %}
+{# ---- Validador de locais (#validador-locais).
+     Lista SÓ o que tem problema. Local que fecha grupo com a CH certa não precisa de
+     conferência — listá-lo junto esconderia as poucas linhas que exigem decisão.
+     Roda apenas a Fase 1 do motor (molde puro, nada persistido), então diz aqui se o
+     slot fecha grupo, sem gerar a escala e sem voltar passos.
+     Contexto: `validacao` = {slots, problemas, n_falha, n_atencao, n_ok, vagas_totais}. ---- #}
+{% set v = validacao %}
+{% set problemas = v.problemas %}
+
+{% if not problemas %}
+  {# Tudo resolvido: uma linha de confirmação, não uma tabela. #}
+  <div class="diag-head" style="margin-bottom:0">
+    <div class="diag-title" style="color:var(--st-concluida)">
+      {{ ui.icon('checkCircle') }} Locais validados
+      <span class="dim" style="font-weight:400;font-size:.8rem">
+        · {{ v.n_ok }} local(is) fecham grupo · {{ v.vagas_totais }} vaga(s) no ciclo</span>
+    </div>
+  </div>
+{% else %}
+<div class="diag-head">
+  <div>
+    <div class="diag-title">
+      {{ ui.icon('alert') }} Locais a resolver
+      {% if v.n_falha %}<span class="badge b-falha"><span class="dt"></span>{{ v.n_falha }} sem grupo</span>{% endif %}
+      {% if v.n_atencao %}<span class="badge b-risco"><span class="dt"></span>{{ v.n_atencao }} com ressalva</span>{% endif %}
+    </div>
+    <div class="diag-sub">
+      Encontros do espelho × datas viáveis do ciclo (feriados, afastamentos e recesso já
+      descontados). Os outros {{ v.n_ok }} local(is) estão ok e não são listados —
+      no total, {{ v.vagas_totais }} vaga(s) no ciclo.
+    </div>
+  </div>
+</div>
+
+<div class="tbl-wrap scroll-x scroll-y" style="max-height:44vh">
+  <table class="tbl tbl-diag">
+    <thead><tr>
+      <th>Área — Campo · quando</th>
+      <th style="text-align:right">Encontros</th>
+      <th class="num">Datas</th>
+      <th class="num">Grupos</th>
+      <th class="num">Vagas</th>
+      <th class="num">CH do slot</th>
+      <th>Passagem</th>
+      <th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for s in problemas %}
+      {% set l = s.local %}
+      <tr style="--area:{{ s.area_cor or 'var(--border-2)' }}">
+        <td class="area-cell">
+          <div>{{ ui.area_pill(s.area_nome, s.area_cor) }} <b>{{ l.campo }}</b>{% if l.unidade %} <span class="dim">· {{ l.unidade }}</span>{% endif %}</div>
+          <div class="arow-when">{{ l.dia_semana.value|rot }} · {{ l.turno.value|rot }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }}</div>
+          {% for m in s.motivos %}<div class="arow-why">{{ m }}</div>{% endfor %}
+        </td>
+
+        {# Edição inline: salva no Enter ou no botão. O ↧ só aparece quando o slot não
+           fecha por falta de datas — é conserto, não sugestão de aumentar encontros. #}
+        <td style="text-align:right">
+          <form hx-post="/ui/bootstrap/validacao/local/{{ l.id }}/encontros"
+                hx-target="#validador-locais" hx-swap="innerHTML"
+                style="display:flex;gap:.25rem;justify-content:flex-end;align-items:center">
+            <input class="input inp-enc" type="number" min="1" name="numero_encontros"
+                   value="{{ s.encontros }}" aria-label="Número de encontros">
+            <button class="icon-btn btn-sm" type="submit" title="Salvar nº de encontros"
+                    style="width:28px;height:28px">{{ ui.icon('check') }}</button>
+          </form>
+          {% if s.pode_sugerir %}
+          <button type="button" class="btn-sug" style="margin-top:.25rem"
+                  onclick="usarSugerido(this, {{ s.sugerido }})"
+                  title="Maior nº de encontros que cabe nas datas viáveis deste slot — abaixo disso ele volta a fechar grupo.">
+            ↧ usar {{ s.sugerido }}</button>
+          {% endif %}
+        </td>
+
+        <td class="num" title="{{ s.ocorrencias }} ocorrência(s) de {{ l.dia_semana.value|rot }} no ciclo − {{ s.bloqueadas }} bloqueada(s) por feriado/afastamento/indisponibilidade">
+          <b>{{ s.viaveis }}</b>{% if s.bloqueadas %}<div class="dim" style="font-size:.7rem">−{{ s.bloqueadas }} de {{ s.ocorrencias }}</div>{% endif %}
+        </td>
+        <td class="num"><b style="color:{{ 'var(--st-falha)' if s.ondas == 0 else 'inherit' }}">{{ s.ondas }}</b></td>
+        <td class="num">{{ s.capacidade_efetiva }}</td>
+
+        {# A consequência que o corte de encontros provoca: menos encontros = menos CH. #}
+        <td class="num" title="{{ s.encontros }} encontros × {{ s.local.horas_sessao or '?' }}h por encontro">
+          {{ s.ch_derivada|round(1) }}h
+          {% if s.ch_abaixo %}<div class="dim" style="font-size:.7rem;color:var(--st-risco)">−{{ s.ch_abaixo|round(1) }}h vs. {{ s.area_carga_exigida }}h</div>
+          {% else %}<div class="dim" style="font-size:.7rem">exige {{ s.area_carga_exigida }}h</div>{% endif %}
+        </td>
+
+        <td>
+          <button class="badge {{ 'b-concluida' if l.passagem_grupo else 'b-neutral' }}"
+                  style="cursor:pointer;border:0"
+                  hx-post="/ui/bootstrap/validacao/local/{{ l.id }}/passagem"
+                  hx-target="#validador-locais" hx-swap="innerHTML"
+                  title="Passagem de grupo: o último encontro de um grupo é o 1º do próximo. Muda o passo entre grupos (cabem mais no ciclo), mas NÃO reduz o bloco de N encontros.">
+            {{ 'Sim' if l.passagem_grupo else 'Não' }}</button>
+        </td>
+
+        <td>
+          {% if s.status == 'falha' %}<span class="badge b-falha"><span class="dt"></span>não fecha</span>
+          {% else %}<span class="badge b-risco"><span class="dt"></span>ressalva</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if v.n_falha %}
+<div class="hint" style="margin-top:.5rem">
+  Um slot que não fecha grupo é <b>capacidade perdida</b> (o bloco final incompleto é
+  descartado). Saídas: <b>reduzir o nº de encontros</b>, oferecer <b>outro dia</b>,
+  <b>estender o ciclo</b> ou remover um evento bloqueante. Ligar a passagem de grupo
+  <b>não resolve</b> este caso — ela muda o intervalo entre grupos, não o tamanho do bloco.
+</div>
+{% endif %}
+{% endif %}

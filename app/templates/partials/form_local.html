@@ -3,12 +3,14 @@
 {% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' local (slot)',
        '/ui/locais/' ~ obj.id if edit else '/ui/locais',
        'put' if edit else 'post', erro, target=(target or '#tbody-locais')) %}
-  {{ ui.campo_select('Área', 'area_id', areas, (obj.area_id if edit else '')) }}
+  {{ ui.campo('Unidade concedente', 'unidade', (obj.unidade if edit else ''), placeholder='Ex.: Santa Casa (HSCL)') }}
+  {{ ui.campo_select('Área de estágio', 'area_id', areas, (obj.area_id if edit else '')) }}
   {{ ui.campo_select('Docente responsável', 'docente_id', [('', '— selecione —')] + docentes, (obj.docente_id if edit and obj.docente_id else '')) }}
-  {{ ui.campo('Campo', 'campo', obj.campo if edit else '', required=true, placeholder='Ex.: AMB. IAPI') }}
-  {{ ui.campo('Unidade (opcional)', 'unidade', (obj.unidade if edit else '')) }}
+  {{ ui.campo_select('Preceptor de campo (opcional)', 'preceptor', [('', '— nenhum —')] + preceptores, preceptor_atual) }}
+  <p class="hint" style="margin-top:-.4rem">O slot só perde a data quando <b>docente E preceptor</b> estão afastados. Preencher os dois aqui é o que faz o <b>validador de locais</b> contar as datas viáveis corretamente.</p>
+  {{ ui.campo('Campo / local', 'campo', obj.campo if edit else '', required=true, placeholder='Ex.: AMB. IAPI') }}
   <div class="grid g-2">
-    {{ ui.campo_select('Dia', 'dia_semana', dias, (obj.dia_semana.value if edit else 'segunda')) }}
+    {{ ui.campo_select('Dia da semana', 'dia_semana', dias, (obj.dia_semana.value if edit else 'segunda')) }}
     {{ ui.campo_select('Turno', 'turno', turnos, (obj.turno.value if edit else 'manha')) }}
   </div>
   <div class="grid g-2">
@@ -16,9 +18,11 @@
     {{ ui.campo('Fim', 'hora_fim', (obj.hora_fim.strftime('%H:%M') if edit else '12:00'), tipo='time', required=true) }}
   </div>
   <div class="grid g-2">
-    {{ ui.campo('Capacidade', 'capacidade', (obj.capacidade if edit else 4), tipo='number', required=true) }}
-    {{ ui.campo('Carga horária total (h)', 'carga_horaria', (obj.carga_horaria if edit else 40), tipo='number', required=true) }}
+    {{ ui.campo('Número de encontros', 'numero_encontros', (obj.numero_encontros if edit else ''), tipo='number', required=true, placeholder='Como no espelho') }}
+    {{ ui.campo('Número de alunos (máx.)', 'capacidade', (obj.capacidade if edit else 4), tipo='number', required=true) }}
   </div>
+  <p class="hint" style="margin-top:-.4rem">Preencha o <b>número de encontros exatamente como no espelho</b> (ex.: ORL-TAN = 3). A carga horária total é calculada sozinha (encontros × horas por encontro).</p>
   {{ ui.campo_check('Passagem de grupo', 'passagem_grupo', obj.passagem_grupo if edit else false) }}
-  <p class="hint">As <b>horas por encontro</b> são calculadas automaticamente (fim − início do turno). O nº de encontros é derivado (carga total ÷ horas/encontro). O preceptor de campo é definido em “Configurações de campo”.</p>
+  <p class="hint" style="margin-top:-.4rem">Quando marcado, o <b>último encontro de um grupo é o 1º do próximo</b> (1 dia de sobreposição para a passagem). Cada grupo mantém seus encontros e as ondas cabem mais cedo no ciclo. O dia da passagem aparece marcado com <span style="color:#f43f5e;font-weight:700">⇄</span> no calendário e na lista de grupos.</p>
+  <p class="hint">As <b>horas por encontro</b> são calculadas automaticamente (fim − início do turno).</p>
 {% endcall %}

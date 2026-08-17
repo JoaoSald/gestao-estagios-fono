@@ -1,0 +1,21 @@
+{% import "_macros.html" as ui %}
+{# Botão do diagnóstico "todos conseguem fazer o ciclo?". Só faz sentido DEPOIS do passo de
+   alunos — a resposta é por aluno, então sem alunos cadastrados não há o que responder.
+   Por isso vive na Revisão (antes de gerar, última chance de mudar a oferta; e depois de
+   gerar, quando aparece "N aguardando" e nasce o "por quê?"), nunca no passo Áreas e
+   Locais. O cálculo é sob demanda, então incluir o botão não custa nada. #}
+<div id="fecha-ciclo">
+  <div style="display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-secondary btn-sm" hx-get="/ui/bootstrap/fecha-ciclo"
+            hx-target="#fecha-ciclo" hx-swap="innerHTML" hx-indicator="#fc-load"
+            hx-disabled-elt="this">
+      {{ ui.icon('checkCircle') }} {{ fc_rotulo|default('Verificar se todos conseguem fazer o ciclo') }}</button>
+    {# A espera é anunciada porque é REAL: cada hipótese é uma geração inteira (~1s no ciclo
+       cheio) e a comissão pediu a lista completa em vez da rápida e pela metade. #}
+    <span class="dim" style="font-size:.8rem">{{ fc_dica|default('Roda o motor sobre a oferta
+      atual e sobre cada oferta hipotética — dia novo e vaga a mais, uma a uma e combinadas —
+      para dizer quantos alunos concluem e o que mudar. Cerca de um minuto.') }}</span>
+    <span id="fc-load" class="htmx-indicator dim" style="font-size:.8rem">verificando…
+      (rodando o motor em cada hipótese, ~1 min)</span>
+  </div>
+</div>

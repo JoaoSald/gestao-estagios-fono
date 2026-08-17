@@ -7,7 +7,7 @@ ESPELHO 2026) contra o banco apontado por DATABASE_URL (.env).
   antes de inserir. CUIDADO: o CASCADE em `ciclos` apaga também alunos,
   matrículas, eventos etc. — use só para (re)semear um banco de catálogo.
 
-Uso: 
+Uso:
     python scripts/seed.py
 """
 import sys

@@ -24,18 +24,22 @@ def _add_mes(ym: str, delta: int) -> str:
     return f"{idx // 12:04d}-{idx % 12 + 1:02d}"
 
 
-def celulas(ano: int, mes: int, chips_por_dia: dict[date, list[dict]], hoje: date) -> list[dict]:
+def _celula(dia: date, chips_por_dia: dict[date, list[dict]], hoje: date, limite: int) -> dict:
+    chips = chips_por_dia.get(dia, [])
+    return {
+        "out": False, "dia": dia.day, "data": dia, "hoje": dia == hoje,
+        "chips": chips[:limite], "extras": chips[limite:], "mais": max(0, len(chips) - limite),
+    }
+
+
+def celulas(ano: int, mes: int, chips_por_dia: dict[date, list[dict]], hoje: date,
+            *, limite: int = 3) -> list[dict]:
     """Grade do mês: brancos iniciais (domingo-primeiro) + dias com chips."""
     start_dow = (date(ano, mes, 1).weekday() + 1) % 7  # Monday=0 → Sunday=0
     dias_no_mes = _cal.monthrange(ano, mes)[1]
     grade: list[dict] = [{"out": True} for _ in range(start_dow)]
     for d in range(1, dias_no_mes + 1):
-        dia = date(ano, mes, d)
-        chips = chips_por_dia.get(dia, [])
-        grade.append({
-            "out": False, "dia": d, "hoje": dia == hoje,
-            "chips": chips[:3], "mais": max(0, len(chips) - 3),
-        })
+        grade.append(_celula(date(ano, mes, d), chips_por_dia, hoje, limite))
     return grade
 
 

@@ -56,7 +56,8 @@ class Local(Base):
     # slot = teto(carga_horaria ÷ horas_sessao). Modelo SLOT: 1 local = 1 (campo+dia+turno).
     horas_sessao: Mapped[float | None] = mapped_column(Float)
     numero_encontros: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Passagem de grupo: último encontro de um grupo = primeiro do próximo (ver §7.2/§10.2).
+    # Passagem de grupo: último encontro de um grupo = primeiro do próximo (1 dia de
+    # sobreposição entre ondas consecutivas do slot; ver §4 e molde.caixas_do_local).
     passagem_grupo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 

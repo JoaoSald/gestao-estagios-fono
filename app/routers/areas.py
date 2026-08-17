@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.schemas.area import AreaCreate, AreaOut, AreaUpdate
 from app.services import area as service
 
-router = APIRouter(prefix="/areas", tags=["áreas"])
+router = APIRouter(prefix="/areas", tags=["áreas"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("", response_model=list[AreaOut])

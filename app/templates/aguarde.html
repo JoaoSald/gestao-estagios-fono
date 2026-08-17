@@ -1,0 +1,23 @@
+{# Destino de LEITURA quando não há escala publicada (ciclo ausente ou em rascunho).
+   Existe para que aluno e docente nunca caiam no wizard de bootstrap, que é tela da
+   comissão — ver `destino_por_estado` em app/routers/ui/deps.py. #}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block body %}
+<div style="position:absolute;top:1.2rem;right:1.2rem;display:flex;gap:.5rem;align-items:center;z-index:5">
+  {% if usuario %}<span class="dim" style="font-size:.82rem">{{ usuario.nome }} · {{ usuario.rotulo_perfil }}</span>{% endif %}
+  <a class="btn btn-ghost btn-sm" href="/logout">{{ ui.icon('logout') }} Sair</a>
+</div>
+<div class="welcome"><div class="welcome-card">
+  <div class="hero-logo">{{ ui.icon('calendar') }}</div>
+  <h1>Escala ainda não publicada</h1>
+  {% if ciclo %}
+  <p>A comissão de estágios está montando a escala de {{ ciclo.data_inicio.year }}.
+     Quando ela for publicada, esta tela passa a mostrar seus estágios — grupos, campos e datas.</p>
+  {% else %}
+  <p>Nenhum ciclo de estágios está aberto no momento. Assim que a comissão abrir e publicar
+     o próximo ciclo, seus estágios aparecem aqui.</p>
+  {% endif %}
+  <p class="dim" style="font-size:.85rem">Dúvidas sobre a sua escala? Procure a comissão de estágios do curso.</p>
+</div></div>
+{% endblock %}

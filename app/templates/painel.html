@@ -11,12 +11,22 @@
   <div class="empty" style="padding:2rem"><span class="dim">Nenhum ciclo ativo. Abra um ciclo para começar.</span></div>
 {% else %}
 
+  {# Fila sem vaga = ALERTA INFORMATIVO (§9), não pendência de remanejo. O Remanejar só
+     reajusta o que a infraestrutura mudou (§7.1); ninguém sai da fila porque a comissão
+     clicou nele. O que destrava a fila é oferta nova — local/dia/área (§8.4) — e é o
+     cadastro dela que acende a pendência. Por isso aqui o CTA é "Novo local", não
+     "Remanejar agora". #}
   {% if progresso.aguardando %}
-  <div class="banner-remanejo">
-    <div class="bico">{{ ui.icon('checkCircle') }}</div>
-    <div class="btxt"><b>{{ progresso.aguardando }} aluno(s) aguardando vaga</b>
-      <span>Há matrículas em andamento sem alocação. Remanejar coloca a fila em andamento por prioridade — respeitando conflito, restrição e teto de 30h.</span></div>
-    <div class="bacts"><button class="btn btn-primary btn-sm" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }} Remanejar agora</button></div>
+  <div class="banner-remanejo info">
+    <div class="bico">{{ ui.icon('clock') }}</div>
+    <div class="btxt"><b>{{ progresso.aguardando }} matrícula(s) aguardando vaga</b>
+      <span>Não há grupo futuro viável para elas nesta oferta — o remanejo não resolve isso.
+        Para abrir vaga, cadastre um novo local/dia na área ou ajuste as matrículas; a escala
+        já gerada não é tocada.</span></div>
+    <div class="bacts">
+      <a class="btn btn-ghost btn-sm" href="/ui/alunos">{{ ui.icon('users') }} Ver a fila</a>
+      <button class="btn btn-primary btn-sm" hx-get="/ui/locais/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('building') }} Novo local</button>
+    </div>
   </div>
   {% endif %}
   {% if escala_desatualizada %}
@@ -56,8 +66,8 @@
           {% for e in eventos %}
           <div class="evrow">
             <div class="evdate"><div class="d">{{ e.data_inicio.strftime('%d') }}</div><div class="m">{{ e.data_inicio.strftime('%m') }}</div></div>
-            <div class="evinfo"><b>{{ e.nome }}</b><span>{{ e.tipo.value }} · {{ 'bloqueia estágio' if e.bloqueia_estagio else 'não bloqueia' }}</span></div>
-            <span class="badge b-neutral pull-right">{{ e.origem.value }}</span>
+            <div class="evinfo"><b>{{ e.nome }}</b><span>{{ e.tipo.value|rot }} · {{ 'bloqueia estágio' if e.bloqueia_estagio else 'não bloqueia' }}</span></div>
+            <span class="badge b-neutral pull-right">{{ e.origem.value|rot }}</span>
           </div>
           {% endfor %}
         {% else %}

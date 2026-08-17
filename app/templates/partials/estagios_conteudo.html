@@ -13,10 +13,12 @@
      Item 3: filtro por semestre + busca por nome + rolagem. #}
   <div data-lista-wrap>
   <div class="flex flex-wrap mb" style="gap:.8rem;margin-bottom:.8rem;align-items:center;justify-content:space-between">
+    {# o total de cada aba é de TODOS os alunos do ciclo, não do filtro ativo #}
     <div class="segmented">
       {% for v, label in [('todos','Todos'),('7','7º semestre'),('9_10','9º/10º semestre')] %}
       <button class="{{ 'active' if fase == v else '' }}"
-              hx-get="/ui/estagios/conteudo?vista=aluno&fase={{ v }}" hx-target="#estagios-conteudo" hx-swap="innerHTML">{{ label }}</button>
+              hx-get="/ui/estagios/conteudo?vista=aluno&fase={{ v }}" hx-target="#estagios-conteudo" hx-swap="innerHTML">{{ label }}
+        <span class="badge b-neutral" style="margin-left:.35rem">{{ totais_fase[v] }}</span></button>
       {% endfor %}
     </div>
     <div style="min-width:min(280px,100%)">{{ ui.busca_local('Buscar aluno por nome…') }}</div>

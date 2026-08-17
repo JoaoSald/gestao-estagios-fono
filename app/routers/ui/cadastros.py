@@ -17,10 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.errors import DomainError
+from app.core.rotulos import opcoes as opcoes_enum, rotulo
 from app.core.templates import templates
 from app.models.catalogo import Area
 from app.models.enums import DiaSemana, FaseArea, StatusMatricula, TipoAfastamento, TipoEvento, Turno
-from app.routers.ui.deps import contexto_shell, exigir_sessao
+from app.routers.ui.deps import exigir_coordenacao
 from app.schemas.afastamento import AfastamentoCreate
 from app.schemas.aluno import AlunoCreate, AlunoUpdate, MatriculaItem
 from app.schemas.area import AreaCreate, AreaUpdate
@@ -39,7 +40,7 @@ from app.services import (
     preceptor as preceptor_service,
 )
 
-router = APIRouter(prefix="/ui", tags=["ui-cadastros"], dependencies=[Depends(exigir_sessao)])
+router = APIRouter(prefix="/ui", tags=["ui-cadastros"], dependencies=[Depends(exigir_coordenacao)])
 
 VALIDOS = {"alunos", "docentes", "preceptores", "afastamentos", "locais", "eventos", "areas"}
 FORM_TEMPLATE = {
@@ -75,16 +76,46 @@ def _match(q: str, *campos) -> bool:
     return _norm(q) in alvo
 
 
+def _parse_preceptor(valor: str | None) -> tuple[str | None, int | None]:
+    """Select único "tipo:id" → par (preceptor_tipo, preceptor_id). Vazio = sem preceptor.
+
+    O preceptor é uma FK polimórfica ('externo' → preceptores, 'docente' → docentes), então
+    o form manda os dois juntos num só campo para nunca gravar metade do par.
+    """
+    if not valor:
+        return None, None
+    tipo, _id = valor.split(":", 1)
+    return tipo, int(_id)
+
+
 def _pill(txt: str, cor: str) -> str:
     return (f'<span class="badge" style="background:color-mix(in srgb,{cor} 18%,transparent);'
             f'color:{cor};border:1px solid color-mix(in srgb,{cor} 40%,transparent)">{escape(txt)}</span>')
 
 
+def _toggle_passagem(local) -> Markup:
+    """Coluna Sim/Não clicável da passagem de grupo (padrão do toggle de prioridade).
+
+    Passagem = último encontro de um grupo é o 1º do próximo, então o passo entre grupos
+    recua 1 dia e mais grupos cabem no ciclo (§4). Sendo 1 clique, a comissão compara o
+    efeito na hora, sem abrir o modal do local.
+    """
+    on = bool(local.passagem_grupo)
+    return Markup(
+        f'<button class="badge {"b-concluida" if on else "b-neutral"}" style="cursor:pointer;border:0"'
+        f' hx-post="/ui/locais/{local.id}/passagem" hx-target="#tbody-locais" hx-swap="innerHTML"'
+        f' title="Passagem de grupo: o último encontro de um grupo é o 1º do próximo'
+        f' (1 dia de sobreposição). Mais grupos cabem no ciclo; o bloco de N encontros não muda.">'
+        f'{"Sim" if on else "Não"}</button>'
+    )
+
+
 def label_area(area, areas_map) -> str:
-    """Rótulo "Mãe - Sub" para sub-áreas (espelha nomeComMae do versao_2); simples = nome."""
-    if area.area_mae_id and area.area_mae_id in areas_map:
-        return f"{areas_map[area.area_mae_id].nome} - {area.nome}"
-    return area.nome
+    """Rótulo "Mãe - Sub" para sub-áreas (espelha nomeComMae do versao_2); simples = nome.
+
+    Alias do helper do serviço — mantido porque vários módulos de UI já importam este nome.
+    """
+    return area_service.nome_completo(area, areas_map)
 
 
 def _area_pill(nome: str, cor: str | None) -> Markup:
@@ -131,11 +162,11 @@ def dados_tabela(db: Session, recurso: str, q: str | None = None) -> dict:
     elif recurso == "eventos":
         colunas = ["Evento", "Período", "Tipo", "Estágio"]
         for e in evento_service.listar(db):
-            if not _match(q, e.nome, e.tipo.value):
+            if not _match(q, e.nome, e.tipo.value, rotulo(e.tipo)):
                 continue
             periodo = f"{e.data_inicio.strftime('%d/%m')}–{e.data_fim.strftime('%d/%m')}"
             bloq = _pill("bloqueia", "var(--st-risco)") if e.bloqueia_estagio else _pill("não bloqueia", "var(--st-iniciar)")
-            itens.append({"id": e.id, "cells": [escape(e.nome), periodo, escape(e.tipo.value), Markup(bloq)]})
+            itens.append({"id": e.id, "cells": [escape(e.nome), periodo, escape(rotulo(e.tipo)), Markup(bloq)]})
     elif recurso == "afastamentos":
         colunas = ["Pessoa", "Tipo", "Motivo", "Período"]
         docs = {d.id: d.nome for d in docente_service.listar(db)}
@@ -143,26 +174,27 @@ def dados_tabela(db: Session, recurso: str, q: str | None = None) -> dict:
         for a in afastamento_service.listar(db):
             nome = docs.get(a.docente_id) if a.docente_id else precs.get(a.preceptor_id, "?")
             papel = _pill("docente", "var(--st-andamento)") if a.docente_id else _pill("preceptor", "var(--st-iniciar)")
-            if not _match(q, nome, a.tipo.value, a.motivo or ""):
+            if not _match(q, nome, a.tipo.value, rotulo(a.tipo), a.motivo or ""):
                 continue
             dias = (a.data_retorno - a.data_inicio).days + 1
             periodo = (f"{a.data_inicio.strftime('%d/%m/%Y')} → {a.data_retorno.strftime('%d/%m/%Y')}"
                        f"<div class='hint'>{dias} dia(s)</div>")
             itens.append({"id": a.id, "cells": [
-                Markup(f"<b>{escape(nome)}</b> {papel}"), Markup(_pill(a.tipo.value, "var(--text-3)")),
+                Markup(f"<b>{escape(nome)}</b> {papel}"), Markup(_pill(rotulo(a.tipo), "var(--text-3)")),
                 escape(a.motivo or "—"), Markup(periodo)], "editavel": False})
     elif recurso == "locais":
         from app.models.catalogo import Docente, Preceptor
         from app.models.enums import StatusAlocacao
         from app.models.escala import Alocacao
         from app.models.local import IndisponibilidadeLocal
-        colunas = ["Área", "Campo / Docente", "Unidade", "Quando", "Ocupação", "Status"]
+        colunas = ["Área", "Campo / Docente", "Unidade", "Quando", "Encontros",
+                   "Passagem", "Ocupação", "Status"]
         areas = {a.id: a for a in db.scalars(select(Area)).all()}
         docs = {d.id: d.nome for d in db.scalars(select(Docente)).all()}
         for l in local_service.listar(db):
             ar = areas.get(l.area_id)
             an = label_area(ar, areas) if ar else "?"
-            if not _match(q, l.campo, an, l.dia_semana.value):
+            if not _match(q, l.campo, an, l.dia_semana.value, rotulo(l.dia_semana)):
                 continue
             doc = docs.get(l.docente_id, "")
             prec = ""
@@ -183,7 +215,9 @@ def dados_tabela(db: Session, recurso: str, q: str | None = None) -> dict:
             itens.append({"id": l.id, "cells": [
                 _area_pill(an, ar.cor if ar else None), Markup(campo),
                 escape(l.unidade or "—"),
-                f"{l.dia_semana.value} · {l.turno.value} · {l.hora_inicio.strftime('%H:%M')}–{l.hora_fim.strftime('%H:%M')}",
+                f"{rotulo(l.dia_semana)} · {rotulo(l.turno)} · {l.hora_inicio.strftime('%H:%M')}–{l.hora_fim.strftime('%H:%M')}",
+                Markup(f"<b>{l.numero_encontros}</b> <span class='dim'>enc.</span>"),
+                _toggle_passagem(l),
                 f"{uso}/{l.capacidade} vagas", Markup(status)], "acoes_html": Markup(acoes)})
     elif recurso == "alunos":
         colunas = ["Aluno", "Matrícula", "Sem.", "Prioridade", "Áreas"]
@@ -211,7 +245,7 @@ def dados_tabela(db: Session, recurso: str, q: str | None = None) -> dict:
             pill = _area_pill(label_area(a, amap), cor)
             prereq = " <span class='badge b-iniciar'>pré-req</span>" if a.pre_requisito else ""
             itens.append({"id": a.id, "cells": [
-                Markup(f"{pill}{prereq}"), f"{a.carga_exigida}h", a.fase.value, tipo]})
+                Markup(f"{pill}{prereq}"), f"{a.carga_exigida}h", rotulo(a.fase), tipo]})
     else:
         colunas = []
     return {"recurso": recurso, "colunas": colunas, "itens": itens, "del_acao": META[recurso][3]}
@@ -302,14 +336,16 @@ def _render_pos_mutacao(request: Request, db: Session, recurso: str):
 # ----------------------------- Form (modal) -----------------------------
 def _areas_check(db: Session, amap: dict, leaf, semestre: int, matric: dict, is_edit: bool) -> list[dict]:
     """Checkboxes de matrícula gated por fase (§4): 7º cursa só o pré-requisito (Audiologia I);
-    9/10 cursa as demais e tem o pré-requisito desabilitado. Aluno novo do 7º já vem com
-    Audiologia I marcada; 9/10 começa tudo desmarcado."""
+    9/10 cursa as demais e tem o pré-requisito desabilitado. Aluno novo já vem com TODAS as
+    áreas da sua fase pré-marcadas (7º → Audiologia I; 9/10 → todas as demais) — a comissão
+    só desmarca as exceções. Ao editar, reflete as matrículas atuais."""
     from app.services.common import fase_do_aluno
     fase7 = fase_do_aluno(semestre).value == "7"
     out = []
     for a in leaf:
         relevante = a.pre_requisito if fase7 else (not a.pre_requisito)
-        marcado = (a.id in matric) if is_edit else (fase7 and a.pre_requisito)
+        # aluno novo: pré-marca tudo que é da fase; ao editar: só o que já está matriculado.
+        marcado = (a.id in matric) if is_edit else relevante
         out.append({
             "id": a.id, "label": label_area(a, amap), "cor": a.cor,
             "marcado": marcado, "disabled": not relevante,
@@ -330,12 +366,12 @@ def _obter(db: Session, recurso: str, id_: int):
 def _form_ctx(db: Session, recurso: str, obj, semestre_novo: int = 9) -> dict:
     ctx: dict = {"obj": obj, "erro": ""}
     if recurso == "eventos":
-        ctx["tipos"] = [(t.value, t.value) for t in TipoEvento]
+        ctx["tipos"] = opcoes_enum(TipoEvento)
     elif recurso == "afastamentos":
         pessoas = [(f"d:{d.id}", f"{d.nome} (docente)") for d in docente_service.listar(db, incluir_inativos=False)]
         pessoas += [(f"p:{p.id}", f"{p.nome} (preceptor)") for p in preceptor_service.listar(db, incluir_inativos=False)]
         ctx["pessoas"] = pessoas
-        ctx["tipos"] = [(t.value, t.value) for t in TipoAfastamento]
+        ctx["tipos"] = opcoes_enum(TipoAfastamento)
     elif recurso == "areas":
         ctx["fases"] = [(FaseArea._9_10.value, "9º/10º (demais)"), (FaseArea._7.value, "7º (mini-ciclo)")]
         # sub-áreas geridas inline ao editar QUALQUER área (vira composta ao ganhar sub-áreas).
@@ -375,14 +411,26 @@ def _form_ctx(db: Session, recurso: str, obj, semestre_novo: int = 9) -> dict:
                 ar = amap.get(l.area_id)
                 g = grupos.setdefault(l.area_id, {"label": label_area(ar, amap) if ar else "?",
                                                   "cor": ar.cor if ar else "#64748b", "locais": []})
-                g["locais"].append({"id": l.id, "campo": l.campo, "dia": l.dia_semana.value,
-                                    "turno": l.turno.value, "disponivel": l.id not in bloq})
+                g["locais"].append({"id": l.id, "campo": l.campo, "dia": rotulo(l.dia_semana),
+                                    "turno": rotulo(l.turno), "disponivel": l.id not in bloq})
             ctx["restr_areas"] = list(grupos.values())
         if recurso == "locais":
-            ctx["dias"] = [(d.value, d.value) for d in DiaSemana]
-            ctx["turnos"] = [(t.value, t.value) for t in Turno]
+            ctx["dias"] = opcoes_enum(DiaSemana)
+            ctx["turnos"] = opcoes_enum(Turno)
             # item 7: docentes já revisados nas etapas anteriores (select "Docente responsável")
             ctx["docentes"] = [(d.id, d.nome) for d in docente_service.listar(db, incluir_inativos=False)]
+            # Preceptor de campo no MESMO form (opções "tipo:id" — FK polimórfica).
+            # Sem ele o validador de locais subestima a cobertura do slot (§4/§8.3).
+            ctx["preceptores"] = (
+                [(f"externo:{p.id}", f"{p.nome} (externo)")
+                 for p in preceptor_service.listar(db, incluir_inativos=False)]
+                + [(f"docente:{d.id}", f"{d.nome} (docente)")
+                   for d in docente_service.listar(db, incluir_inativos=False)]
+            )
+            ctx["preceptor_atual"] = (
+                f"{obj.preceptor_tipo}:{obj.preceptor_id}"
+                if obj is not None and obj.preceptor_tipo and obj.preceptor_id else ""
+            )
     return ctx
 
 
@@ -447,14 +495,17 @@ def _sincronizar_composta(db: Session, mae_id: int) -> None:
 def area_add_subarea(mae_id: int, request: Request, sub_nome: str = Form(""),
                      sub_carga: int = Form(0), db: Session = Depends(get_db)):
     mae = area_service.obter(db, mae_id)
+    erro = ""
     if sub_nome.strip() and sub_carga > 0:
         try:
             area_service.criar(db, AreaCreate(nome=sub_nome.strip(), carga_exigida=sub_carga,
                                               fase=mae.fase, cor=mae.cor, area_mae_id=mae_id, composta=False))
             _sincronizar_composta(db, mae_id)  # ganhou sub-área → vira composta
-        except DomainError:
-            pass  # nome duplicado etc. — apenas re-renderiza o modal sem quebrar
-    resp = _render_form(request, db, "areas", area_service.obter(db, mae_id))
+        except DomainError as e:
+            erro = e.mensagem  # nome duplicado etc. — mostra o motivo no modal
+    else:
+        erro = "Informe o nome da sub-área e uma carga horária maior que zero."
+    resp = _render_form(request, db, "areas", area_service.obter(db, mae_id), erro=erro)
     resp.headers["HX-Trigger"] = json.dumps({"recarregar-areas": True})  # reflete na etapa 3a
     return resp
 
@@ -463,14 +514,17 @@ def area_add_subarea(mae_id: int, request: Request, sub_nome: str = Form(""),
 def area_del_subarea(sub_id: int, request: Request, db: Session = Depends(get_db)):
     sub = area_service.obter(db, sub_id)
     mae_id = sub.area_mae_id
+    erro = ""
     try:
         area_service.remover(db, sub_id)
         if mae_id:
             _sincronizar_composta(db, mae_id)  # perdeu a última sub-área → volta a simples
-    except DomainError:
-        pass  # tem locais/matrículas dependentes — mantém e apenas re-renderiza
+    except DomainError as e:
+        # Tem locais/matrículas dependentes: não dá pra excluir. Surfaça o motivo
+        # no modal em vez de re-renderizar idêntico (parecia "botão não funciona").
+        erro = e.mensagem
     mae = area_service.obter(db, mae_id) if mae_id else None
-    resp = _render_form(request, db, "areas", mae)
+    resp = _render_form(request, db, "areas", mae, erro=erro)
     resp.headers["HX-Trigger"] = json.dumps({"recarregar-areas": True})  # reflete na etapa 3a
     return resp
 
@@ -509,11 +563,20 @@ def _salvar(db: Session, recurso: str, form, edit_id: int | None):
         # item 4: horas/encontro NÃO é mais campo — deriva da janela do turno (fim − início).
         horas_sessao = round(((hf.hour * 60 + hf.minute) - (hi.hour * 60 + hi.minute)) / 60, 2)
         doc = g("docente_id")  # item 7: docente responsável escolhido no form
+        # Espelho manda: nº de encontros é o campo principal; a carga total é DERIVADA
+        # (encontros × horas/encontro), não é mais digitada.
+        enc = int(g("numero_encontros"))
+        carga = max(1, round(enc * horas_sessao))
+        # Preceptor de campo (opcional) no próprio form do slot: a cobertura completa aqui
+        # é o que faz o validador de locais dizer a verdade sobre as datas viáveis.
+        prec_tipo, prec_id = _parse_preceptor(form.get("preceptor"))
         payload = dict(area_id=int(g("area_id")), campo=g("campo"), unidade=g("unidade") or None,
                        dia_semana=g("dia_semana"), turno=g("turno"),
                        hora_inicio=hi, hora_fim=hf,
-                       capacidade=int(g("capacidade")), carga_horaria=int(g("carga_horaria")),
+                       capacidade=int(g("capacidade")), carga_horaria=carga,
                        horas_sessao=horas_sessao, docente_id=int(doc) if doc else None,
+                       preceptor_tipo=prec_tipo, preceptor_id=prec_id,
+                       numero_encontros=enc,
                        passagem_grupo="passagem_grupo" in form)
         if edit_id:
             local_service.atualizar(db, edit_id, LocalUpdate(**payload))
@@ -634,18 +697,33 @@ def toggle_prioridade(aluno_id: int, request: Request, db: Session = Depends(get
     return _ok(_render_linhas(request, db, "alunos"), "Prioridade atualizada.")
 
 
+@router.post("/locais/{local_id}/passagem")
+def toggle_passagem(local_id: int, request: Request, db: Session = Depends(get_db)):
+    """Liga/desliga a passagem de grupo do slot direto na tabela de locais.
+
+    Muda quantos grupos cabem no ciclo, então no bootstrap devolve 204 + `recarregar-locais`:
+    a seção inteira se re-renderiza e o validador/análise já refletem o novo número.
+    """
+    novo = not local_service.obter(db, local_id).passagem_grupo
+    local_service.atualizar(db, local_id, LocalUpdate(passagem_grupo=novo))
+    msg = "Passagem de grupo " + ("ativada." if novo else "desativada.")
+    if _no_bootstrap(request):
+        from fastapi import Response
+        resp = Response(status_code=204)
+        resp.headers["HX-Trigger"] = json.dumps(
+            {"toast": {"msg": msg, "tipo": "success"}, "recarregar-locais": True})
+        return resp
+    return _ok(_render_linhas(request, db, "locais"), msg)
+
+
 @router.post("/locais/{local_id}/config")
 async def config_campo(local_id: int, request: Request, db: Session = Depends(get_db)):
-    """Passo 5 do bootstrap: define docente + preceptor (polimórfico) do slot."""
+    """Passo 'Config. de campo': define docente + preceptor (polimórfico) do slot."""
     from fastapi import Response
     form = await request.form()
     doc = form.get("docente_id")
     docente_id = int(doc) if doc else None
-    prec = form.get("preceptor") or ""
-    ptipo = pid = None
-    if prec:
-        ptipo, _pid = prec.split(":", 1)
-        pid = int(_pid)
+    ptipo, pid = _parse_preceptor(form.get("preceptor"))
     local_service.configurar_campo(
         db, local_id, LocalConfigCampo(docente_id=docente_id, preceptor_tipo=ptipo, preceptor_id=pid))
     resp = Response(status_code=204)

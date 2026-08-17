@@ -1,21 +1,21 @@
 {# Preview do impacto do remanejo (§7.3) — dry-run, nada aplicado ainda. #}
 {% if resumo %}
   {% if resumo.novas_caixas %}
-  <p class="muted">{{ resumo.novas_caixas }} caixa(s) nova(s) do molde materializada(s).</p>
+  <p class="muted">{{ resumo.novas_caixas }} grupo(s) novo(s) do molde materializado(s).</p>
   {% endif %}
 
   {% for l in resumo.locais %}
   <div class="card" style="margin-top:.5rem"><div class="card-body">
     <b>{{ l.campo }}</b>
     {% if l.sessoes_movidas %}
-    <div class="muted">{{ l.sessoes_movidas }} sessão(ões) empurrada(s) em {{ l.caixas_reflowadas }} caixa(s).</div>
+    <div class="muted">{{ l.sessoes_movidas }} sessão(ões) empurrada(s) em {{ l.caixas_reflowadas }} grupo(s).</div>
     {% endif %}
     {% for c in l.conclusoes %}
     <div class="muted">Conclusão de <b>{{ c.aluno }}</b>:
       {{ c.de.strftime('%d/%m/%Y') if c.de else '—' }} → <b>{{ c.para.strftime('%d/%m/%Y') }}</b></div>
     {% endfor %}
     {% for d in l.descartes %}
-    <div class="muted" style="color:#c0392b">Caixa descartada — <b>{{ d.aluno }}</b> volta à fila
+    <div class="muted" style="color:#c0392b">Grupo descartado — <b>{{ d.aluno }}</b> volta à fila
       ({{ d.feitos }}/{{ d.total }} encontros preservados).</div>
     {% endfor %}
   </div></div>
@@ -29,7 +29,7 @@
   {% endfor %}
 
   {% if not resumo.tem_mudanca() %}
-  <div class="muted">Sem efeito prático a aplicar (as caixas já estão coerentes).</div>
+  <div class="muted">Sem efeito prático a aplicar (os grupos já estão coerentes).</div>
   {% endif %}
 {% endif %}
 

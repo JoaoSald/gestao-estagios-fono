@@ -1,14 +1,12 @@
 # Segredos / config local — NUNCA versionar
 .env
+teste.txt          # contas de teste do dev, com senha em texto puro
 
 # Python
 __pycache__/
 *.py[cod]
 venv/
 .venv/
-
-# Testes
-tests/
 
 # Sistema / editores
 .DS_Store

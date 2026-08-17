@@ -1,7 +1,8 @@
 {% import "_macros.html" as ui %}
-{# ---- Etapa 3a · Áreas (simples + compostas com sub-áreas). Conteúdo re-renderizável (#bs-areas). ---- #}
+{# ---- Áreas (simples + compostas com sub-áreas) — 1ª seção do passo "Áreas e Locais".
+     Conteúdo re-renderizável (#bs-areas). ---- #}
 <div class="card" style="margin-bottom:1rem"><div class="card-head">
-  <div><h3>Passo 3a · Áreas</h3><div class="card-sub">Simples (o aluno cumpre em qualquer local) e compostas (edite a área para criar/remover sub-áreas com CH que somam o total, ex.: Audiologia II, Hospitalar).</div></div>
+  <div><h3>Áreas</h3><div class="card-sub">Simples (o aluno cumpre em qualquer local) e compostas (edite a área para criar/remover sub-áreas com CH que somam o total, ex.: Audiologia II, Hospitalar).</div></div>
   <button class="btn btn-primary btn-sm" hx-get="/ui/areas/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Nova área</button>
 </div><div class="card-body">
   {% for a in areas_simples %}
@@ -16,7 +17,10 @@
     <button class="icon-btn btn-sm" title="Editar área e sub-áreas" hx-get="/ui/areas/{{ c.mae.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
   </div>
   <div style="padding-left:.9rem">
-    {% for s in c.subs %}<div style="padding:.2rem 0">↳ {{ ui.area_pill(s.nome, s.cor or c.mae.cor) }} <span class="dim">· {{ s.carga_exigida }}h</span></div>{% else %}<div style="padding:.2rem 0" class="dim">sem sub-áreas</div>{% endfor %}
+    {% for s in c.subs %}<div class="flex between" style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0">
+      <span>↳ {{ ui.area_pill(s.nome, s.cor or c.mae.cor) }} <span class="dim">· {{ s.carga_exigida }}h</span></span>
+      <button class="icon-btn btn-sm" title="Editar nome/CH da sub-área" hx-get="/ui/areas/{{ s.id }}/form" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('edit') }}</button>
+    </div>{% else %}<div style="padding:.2rem 0" class="dim">sem sub-áreas</div>{% endfor %}
   </div>
   {% endfor %}
 </div></div>

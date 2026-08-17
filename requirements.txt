@@ -24,8 +24,10 @@ openpyxl>=3.1               # planilha Excel (.xlsx) dos grupos; .ics do aluno u
 reportlab>=4.0             # PDF dos grupos e do calendário do aluno (Python puro, sem libs de sistema)
 
 # --- autenticação (FASE 6) ---
-passlib[bcrypt]>=1.7
-python-jose[cryptography]>=3.3
+# bcrypt direto, sem passlib: o passlib 1.7.4 (último release, 2020) quebra com bcrypt>=5
+# ("password cannot be longer than 72 bytes" mesmo em senha de 1 byte).
+bcrypt>=4.1
+python-jose[cryptography]>=3.3      # JWT assinado do cookie de sessão
 
 # --- integrações externas (FASE 7) ---
 httpx>=0.27

@@ -21,8 +21,16 @@ class Settings(BaseSettings):
     # Chave de assinatura de tokens (FASE 6). Padrão só serve pra dev.
     SECRET_KEY: str = "dev-inseguro-trocar"
 
+    # Validade do cookie de sessão, em horas (cobre um dia de trabalho da comissão).
+    SESSAO_HORAS: int = 12
+
     # dev | prod
     APP_ENV: str = "dev"
+
+    @property
+    def em_producao(self) -> bool:
+        """Cookie `secure`, CORS fechado e afins dependem disto — um lugar só."""
+        return self.APP_ENV != "dev"
 
 
 settings = Settings()

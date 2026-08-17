@@ -1,26 +1,10 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 
-{% set NAV = [
-  ('CADASTROS', [
-    ('alunos', 'Alunos', 'users', '/ui/alunos'),
-    ('areas', 'Áreas', 'layers', '/ui/areas'),
-    ('docentes', 'Docentes', 'teacher', '/ui/docentes'),
-    ('preceptores', 'Preceptores', 'user', '/ui/preceptores'),
-    ('afastamentos', 'Afastamentos', 'calendarOff', '/ui/afastamentos'),
-    ('locais', 'Locais', 'building', '/ui/locais'),
-    ('eventos', 'Eventos', 'calendar', '/ui/eventos'),
-  ]),
-  ('VISUALIZAÇÕES', [
-    ('painel', 'Painel', 'dashboard', '/ui/painel'),
-    ('estagios', 'Estágios', 'grid', '/ui/estagios'),
-    ('historico', 'Histórico', 'history', '/ui/historico'),
-  ]),
-  ('OPERAÇÕES', [
-    ('remanejar', 'Remanejar', 'shuffle', '/ui/remanejar'),
-    ('encerrar', 'Encerrar ciclo', 'power', '/ui/encerrar'),
-  ]),
-] %}
+{# O menu vem de app/core/navegacao.py, já filtrado pelo perfil de quem entrou.
+   O filtro é cortesia (não oferecer o que a rota recusa) — quem protege é o gate
+   do router; ver app/routers/acesso.py. #}
+{% set NAV = menu_de(usuario.perfil if usuario else None) %}
 
 {% block body %}
 <div class="shell">
@@ -30,25 +14,25 @@
       <div><div class="t1">Gestão de Estágios</div><div class="t2">Fonoaudiologia · UFCSPA</div></div>
     </div>
     <nav class="nav">
-      {% for grupo, itens in NAV %}
-        <div class="nav-group">{{ grupo }}</div>
-        {% for chave, label, ic, url in itens %}
-          {% if chave == 'remanejar' %}
+      {% for grupo in NAV %}
+        <div class="nav-group">{{ grupo.titulo }}</div>
+        {% for it in grupo.itens %}
+          {% if it.chave == 'remanejar' %}
           <a class="nav-link" style="cursor:pointer" hx-get="/ui/remanejar-modal" hx-target="#modal-root" hx-swap="innerHTML">
-            {{ ui.icon(ic) }}<span>{{ label }}</span>
+            {{ ui.icon(it.icone) }}<span>{{ it.label }}</span>
             {% if ciclo and ciclo.escala_desatualizada %}<span class="nav-badge">{{ fila_count }}</span>{% endif %}
           </a>
           {% else %}
-          <a class="nav-link {{ 'active' if ativo == chave else '' }}" href="{{ url }}">
-            {{ ui.icon(ic) }}<span>{{ label }}</span>
+          <a class="nav-link {{ 'active' if ativo == it.chave else '' }}" href="{{ it.url }}">
+            {{ ui.icon(it.icone) }}<span>{{ it.label }}</span>
           </a>
           {% endif %}
         {% endfor %}
       {% endfor %}
     </nav>
     <div class="sidebar-foot">
-      <div class="al-avatar" style="width:36px;height:36px;border-radius:10px;font-size:.85rem">CO</div>
-      <div class="who"><b>Coordenação</b><span class="dim">Comissão de Estágios</span></div>
+      <div class="al-avatar" style="width:36px;height:36px;border-radius:10px;font-size:.85rem">{{ usuario.iniciais if usuario else '—' }}</div>
+      <div class="who"><b>{{ usuario.nome if usuario else 'Visitante' }}</b><span class="dim">{{ usuario.rotulo_perfil if usuario else '' }}</span></div>
       <button class="icon-btn pull-right" id="btn-tema" title="Alternar tema">{{ ui.icon('sun') }}</button>
       <a class="icon-btn" href="/logout" title="Sair">{{ ui.icon('logout') }}</a>
     </div>

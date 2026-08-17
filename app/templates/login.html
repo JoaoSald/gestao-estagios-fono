@@ -25,12 +25,17 @@
       </div>
       <h2 class="login-title">Entrar</h2>
       <p class="login-sub">Use seu e-mail institucional para acessar.</p>
+      {# Nada de e-mail/senha pré-preenchidos: o `value` de exemplo que morava aqui ia
+         para produção como credencial impressa na tela. #}
+      {% if erro %}<div class="field-err" role="alert" style="margin-bottom:.9rem;padding:.6rem .8rem;border:1px solid #f8717155;border-radius:9px;background:#f8717118">{{ erro }}</div>{% endif %}
       <form method="post" action="/login">
         <div class="field"><label>E-mail institucional</label>
-          <input type="email" class="input" name="email" placeholder="coordenacao@ufcspa.edu.br" value="coordenacao@ufcspa.edu.br" required /></div>
+          <input type="email" class="input" name="email" placeholder="nome@ufcspa.edu.br"
+                 value="{{ email|default('', true) }}" autocomplete="username" autofocus required /></div>
         <div class="field"><label>Senha</label>
           <div class="login-pass">
-            <input id="login-senha" type="password" class="input" name="senha" placeholder="••••••••" value="senha123" required />
+            <input id="login-senha" type="password" class="input" name="senha" placeholder="••••••••"
+                   autocomplete="current-password" required />
             <button type="button" class="login-eye" id="btn-eye" aria-label="Mostrar senha">{{ ui.icon('eye') }}</button>
           </div></div>
         <div class="login-row">
@@ -40,7 +45,10 @@
         <button type="submit" class="btn btn-primary btn-block" style="padding:.65rem">Entrar</button>
       </form>
       <div class="login-or"><span></span><em>ou</em><span></span></div>
-      <button class="btn btn-secondary btn-block" id="btn-google" style="padding:.65rem">
+      {# O login institucional entra na FASE B (SSO). Desabilitado até existir cliente
+         OAuth da UFCSPA — botão que não faz nada é pior que botão ausente. #}
+      <button class="btn btn-secondary btn-block" id="btn-google" style="padding:.65rem" disabled
+              title="Login institucional: em implantação">
         <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>

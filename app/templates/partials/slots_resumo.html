@@ -1,0 +1,14 @@
+{% import "_macros.html" as ui %}
+{# ---- Resumo dos slots ofertados: UMA LINHA POR (ÁREA, CAMPO).
+     Nº de encontros e capacidade são do campo, não da área — campos da mesma área
+     podem divergir (Voz — Coral 20 enc. vs Voz — Amb. ORL 16 enc.). Incluído pelo
+     wizard (bootstrap.html) e pelo passo 3b (#bs-locais). ---- #}
+{% for r in locais_resumo %}
+<div class="hint">
+  {{ ui.area_pill(r.nome, r.cor) }}
+  <b>{{ r.campo }}</b>{% if r.unidade %} <span class="dim">· {{ r.unidade }}</span>{% endif %}:
+  <b>{{ r.n }} slot(s)</b> → {{ r.n }} grupo(s) em paralelo · até <b>{{ r.cap }}</b> aluno(s)/leva ·
+  <b>{{ r.enc }}</b> encontros p/ concluir{% if r.enc_varia %}
+  <span class="badge b-risco" title="Os dias deste campo têm nº de encontros diferentes — cada dia fecha grupos de tamanho diferente. Confira o espelho.">{{ ui.icon('alert') }} varia por dia</span>{% endif %}
+</div>
+{% endfor %}

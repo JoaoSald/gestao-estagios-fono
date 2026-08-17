@@ -1,6 +1,12 @@
 {% import "_macros.html" as ui %}
+{# Download da grade em PDF. `hx-boost` fora (é `<a download>`, não swap de HTMX) — com o
+   boost o navegador engoliria o corpo do PDF como se fosse HTML. #}
+<div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
+  <a class="btn btn-secondary btn-sm" href="/ui/montagem/grade.pdf" download hx-boost="false">
+    {{ ui.icon('download') }} Baixar grade das ondas (PDF)</a>
+</div>
 <div class="mb" style="padding:.55rem;border:1px dashed var(--border);border-radius:.6rem;margin-bottom:1rem">
-  <div class="hint" style="font-weight:700;margin-bottom:.4rem">Banco de prioridade — arraste para uma caixa (ou use o seletor “+ aluno”)</div>
+  <div class="hint" style="font-weight:700;margin-bottom:.4rem">Banco de prioridade — arraste para um grupo (ou use o seletor “+ aluno”)</div>
   <div id="banco-prioridade">
     {% for a in banco %}
       <span class="badge b-neutral" draggable="true" data-aluno="{{ a.aluno_id }}"

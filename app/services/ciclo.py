@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.core.errors import Conflito, DomainError
+from app.core.passos import TOTAL_PASSOS
+from app.core.rotulos import rotulo
 from app.models.ciclo import Ciclo
 from app.models.enums import StatusCiclo, TipoAtividade
 from app.models.local import Local
@@ -104,7 +106,7 @@ def set_passo(db: Session, ciclo_id: int, passo: int) -> Ciclo:
     ciclo = obter(db, ciclo_id)
     if ciclo.status != StatusCiclo.rascunho:
         raise DomainError("Navegação de passos só vale durante o bootstrap (rascunho).")
-    ciclo.passo_bootstrap = max(1, min(10, passo))
+    ciclo.passo_bootstrap = max(1, min(TOTAL_PASSOS, passo))
     common.commit(db, "Não foi possível salvar o passo.")
     db.refresh(ciclo)
     return ciclo
@@ -115,7 +117,7 @@ def confirmar(db: Session, ciclo_id: int) -> Ciclo:
     ciclo = obter(db, ciclo_id)
     if ciclo.status != StatusCiclo.rascunho:
         raise DomainError(
-            f"Só é possível confirmar um ciclo em rascunho (atual: {ciclo.status.value})."
+            f"Só é possível confirmar um ciclo em rascunho (atual: {rotulo(ciclo.status)})."
         )
     ciclo.status = StatusCiclo.em_andamento
     ciclo.passo_bootstrap = None
@@ -137,7 +139,7 @@ def encerrar(db: Session, ciclo_id: int, ano: int) -> Ciclo:
     ciclo = obter(db, ciclo_id)
     if ciclo.status != StatusCiclo.em_andamento:
         raise DomainError(
-            f"Só é possível encerrar um ciclo em andamento (atual: {ciclo.status.value})."
+            f"Só é possível encerrar um ciclo em andamento (atual: {rotulo(ciclo.status)})."
         )
     ano_ciclo = ciclo.data_inicio.year
     if ano != ano_ciclo:

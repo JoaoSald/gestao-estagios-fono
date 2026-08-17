@@ -1,5 +1,7 @@
 {% import "_macros.html" as ui %}
-<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">
+{# `data-static` pelo mesmo motivo de `ui.modal_form`: é formulário, então clique fora e Esc
+   não fecham — só o X e o Cancelar. Este não usa o macro porque tem corpo próprio. #}
+<div class="modal-backdrop" data-static><div class="modal" role="dialog" aria-modal="true">
   <div class="modal-head"><h3>Abrir novo ciclo</h3>
     <button class="icon-btn" type="button" data-close>{{ ui.icon('x') }}</button></div>
   <form hx-post="/ui/ciclos/abrir" hx-target="#modal-root" hx-swap="innerHTML">

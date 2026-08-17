@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.models.aluno import Aluno, Matricula
 from app.models.catalogo import Area
 from app.models.ciclo import Ciclo
@@ -23,7 +24,7 @@ from app.services import common
 from app.services.motor import ajuste, encontros, escala, eventos_ciclo, montagem
 from app.schemas.aluno import AlunoUpdate
 
-router = APIRouter(tags=["escala"])
+router = APIRouter(tags=["escala"], dependencies=[Depends(exigir_coordenacao)])
 
 
 def _resultado(r: ajuste.ResultadoAjuste) -> AjusteResultado:

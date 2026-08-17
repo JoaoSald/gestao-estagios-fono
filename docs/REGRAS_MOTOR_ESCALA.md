@@ -83,18 +83,25 @@ frente nem empurrado para trás depois disso.
 
 ## 3. Restrições duras (viabilidade)
 
-Barram a entrada de um aluno numa caixa. São **quatro**:
+Barram a entrada de um aluno numa caixa. Um aluno **PODE cursar áreas diferentes no
+mesmo dia** (inclusive no mesmo turno) — o que manda é o relógio, não o rótulo do
+turno. As restrições de carga são **três**, mais a blocklist:
 
 1. **Teto de 30h/semana** — em toda semana que a caixa ocupa, `horas_da_semana +
    horas_da_sessão ≤ 30`. O cálculo é **semana a semana**: caixas que **não se
    sobrepõem no tempo não competem entre si** — quando uma caixa termina, as
    horas (e o dia da semana) daquela caixa ficam livres para outra área dali em
    diante.
-2. **Intervalo mínimo de 1h30** entre duas áreas que caiam no **mesmo dia**.
-3. **Sem conflito de dia/turno** — não dobrar o mesmo turno **em caixas cujos
-   períodos se sobrepõem**. O mesmo dia/turno pode ser reutilizado por outra área
-   depois que a caixa anterior encerra.
+2. **Sem sobreposição de horário** entre duas áreas que caiam no **mesmo dia** (em
+   caixas cujos períodos coexistem no calendário).
+3. **Intervalo mínimo de 1h30** entre o fim de uma sessão e o início da próxima
+   quando as duas caem no **mesmo dia**.
 4. **Blocklist de local** — o local não pode estar na lista de restrições do aluno.
+
+> **Não há** limite de "1 estágio por dia" nem bloqueio por dobrar o mesmo turno.
+> Dois estágios no mesmo dia são permitidos desde que não haja sobreposição de
+> horário e haja ≥1h30 entre eles (respeitado o teto de 30h/semana). Decisão que
+> substitui a antiga restrição 3 "conflito de dia/turno".
 
 Fora essas quatro, o objetivo é **alocar a galera e fechar as caixas**.
 
@@ -116,6 +123,8 @@ Para cada par (local, dia) do ciclo:
             · slot só com docente (sem preceptor) e docente afastado
               → a área fica DESATIVADA durante o período do afastamento
   3. Fatia datas_viaveis em blocos consecutivos de tamanho N
+     (se `local.passagem_grupo`: blocos se sobrepõem em 1 dia — a onda
+      seguinte começa no ÚLTIMO dia da anterior; passo = N−1)
   4. Cada bloco completo vira uma caixa:
         { area, local, dia, turno, periodo:[1ª..Nª data],
           datas:[...], capacidade: grupo_aluno, ocupantes:[] }
@@ -136,6 +145,14 @@ Exemplo — local terça, N=4, ciclo a partir de 03/03, feriado em 14/04:
 
 As caixas saem **encadeadas** (a próxima começa onde a anterior terminou) porque
 são fatias consecutivas da mesma fila — sem gerenciar "início da próxima onda".
+
+**Passagem de grupo** (`local.passagem_grupo`): quando o local marca passagem de
+grupo, as ondas consecutivas **se sobrepõem em 1 dia** — o **último encontro de
+uma onda é o primeiro da seguinte** (`caixa_k.data_fim == caixa_{k+1}.data_inicio`).
+É o dia em que a comissão faz a passagem: o grupo que sai e o que entra estão
+juntos naquela data. O passo de fatiamento recua de N para **N−1** e cada grupo
+mantém seus N encontros. Sem a marcação, as ondas são disjuntas (a próxima começa
+depois). N==1 não admite passagem.
 
 ## 5. Fase 2 — Rascunho: prioridade 100% manual (marca e arrasta)
 
@@ -175,8 +192,8 @@ as **4 restrições duras** (§3):
    as horas de todas as caixas do aluno que se sobrepõem em cada semana e
    mostra-se o maior valor vs. o teto (ex. `26h/30h`). Caixas que não se
    sobrepõem não somam.
-2. **Conflito de dia/turno** — a caixa destino não pode cair no mesmo dia/turno de
-   outra caixa do aluno cujas janelas se sobreponham.
+2. **Sobreposição de horário** — a caixa destino não pode sobrepor no relógio outra
+   caixa do aluno que caia no mesmo dia e cujas janelas se sobreponham no calendário.
 3. **Intervalo de 1h30** — se duas áreas caem no mesmo dia, ≥1h30 entre elas.
 4. **Blocklist** — o local da caixa destino não pode estar bloqueado para o aluno.
 
@@ -189,8 +206,8 @@ Quando o ajuste manual violaria qualquer uma das 4 restrições duras, o sistema
 **não executa o movimento**. Em vez disso:
 
 - explica o **motivo** exato (ex.: "passaria de 30h na semana de 07/04";
-  "conflito de terça/manhã com Audiologia"; "faltam 1h30 entre áreas no mesmo
-  dia"; "local bloqueado para este aluno"); e
+  "sobreposição de horário com outra área no mesmo dia (terca)"; "faltam 1h30
+  entre áreas no mesmo dia"; "local bloqueado para este aluno"); e
 - **sugere a caixa viável mais cedo** para aquele aluno naquela área.
 
 As 4 restrições duras são **invioláveis também no ajuste manual** — não há
@@ -207,8 +224,9 @@ O motor **sabe quando cada caixa termina**. Então, ao montar a grade anual do
 aluno, ele **encadeia áreas em sequência**: quando uma área conclui, aquele dia
 da semana (e aquelas horas) **abrem na semana do aluno**, e o motor **usa esse
 mesmo dia para a próxima área**, numa caixa que comece dali em diante. O sistema
-**calcula isso automaticamente** — o teto de 30h e o conflito de dia/turno são
-avaliados **semana a semana**, nunca somando caixas que não coexistem no tempo.
+**calcula isso automaticamente** — o teto de 30h e a checagem de horário no mesmo
+dia (sobreposição + intervalo de 1h30) são avaliados **semana a semana**, nunca
+somando caixas que não coexistem no tempo.
 
 Resultado: ao final do bootstrap, o aluno tem a **grade completa do ciclo** —
 todos os grupos dele, do primeiro ao último, já com datas. Depois disso o

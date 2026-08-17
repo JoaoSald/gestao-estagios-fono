@@ -1,0 +1,299 @@
+{% import "_macros.html" as ui %}
+{# "Todos conseguem fazer o ciclo?" — duas perguntas diferentes, na ordem certa.
+
+   1. SIMULAÇÃO (lidera): roda o mesmo motor que vai gerar a escala sobre a oferta como está
+      hoje. É o número que a comissão vai reencontrar depois de clicar em Gerar — então é ele
+      que fica no crachá. Antes o painel liderava com a forma e dizia "10 de 10 fecham" para
+      um ciclo que a geração entregava com 6 concluindo e gente na fila.
+   2. FORMA da oferta: as áreas de UM aluno cabem juntas no relógio dele, com capacidade
+      ignorada de propósito. Serve para separar "impossível pelo relógio" de "perdeu o
+      assento" — que são remédios diferentes. Fica logo abaixo, explicando a diferença. #}
+{% set v = fecha_ciclo %}
+{% set real = v.real %}
+{% set ag = real.fila_agrupada %}
+{% set fecha_tudo = real.completos >= real.total %}
+{# A providência escrita por extenso. Um local é campo + dia + TURNO: "abrir na sexta" sem
+   turno e horário não é uma instrução, é um palpite — a comissão não saberia o que digitar
+   no passo Áreas e Locais. São sempre cópias dos locais que a área já tem, no dia novo. #}
+{% macro lista(itens) %}{% if itens|length > 1 %}{{ itens[:-1]|join(', ') }} e {{ itens[-1] }}
+{%- else %}{{ itens|first or '—' }}{% endif %}{% endmacro %}
+{% macro cadastrar(dia, locais, dias_atuais) %}
+  <div class="dim" style="font-size:.78rem;margin-top:.2rem">
+    Cadastrar {{ locais|length }} {{ 'locais' if locais|length != 1 else 'local' }} na
+    {{ dia|lower }}, cópia d{{ 'os' if locais|length != 1 else 'o' }} que a área já tem:
+    {% for lo in locais[:3] %}{{ '· ' if not loop.first }}<b>{{ lo.turno }} {{ lo.horario }}</b>
+      {{ lo.campo }}{% endfor %}{% if locais|length > 3 %} · +{{ locais|length - 3 }}{% endif %}.
+    Hoje só na {{ lista(dias_atuais) }} — esses dias continuam.
+  </div>
+{% endmacro %}
+<div class="card"><div class="card-head"><div>
+    <h3>Todos conseguem fazer o ciclo?</h3>
+    <div class="card-sub">Simulação com o motor de verdade: aloca os alunos na oferta atual,
+      respeitando horário, intervalo de 1h30 e o teto de 30h/semana. Mesmo resultado que
+      Gerar vai dar.</div>
+  </div>
+  <span class="badge {{ 'b-concluida' if fecha_tudo else 'b-risco' }}">
+    <span class="dt"></span>{{ real.completos }} de {{ real.total }} concluem</span>
+</div>
+<div class="card-body">
+
+  {# Teto global da oferta: vagas do ciclo (já com as ondas) × matrículas. É o número que
+     diz quantos alunos esta oferta sustenta — a entrega cresce proporcional à turma até
+     aqui, e depois cada aluno a mais vira fila. #}
+  <div class="grid g-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="khead"><span class="kicon">{{ ui.icon('grid') }}</span>Vagas no ciclo</div>
+      <div class="kval">{{ v.vagas_ciclo }}</div></div>
+    <div class="kpi"><div class="khead"><span class="kicon">{{ ui.icon('users') }}</span>Matrículas</div>
+      <div class="kval">{{ v.demanda_total }}</div></div>
+    <div class="kpi {{ 'warn' if v.saldo_ciclo < 0 }}"><div class="khead">
+      <span class="kicon">{{ ui.icon('layers') }}</span>Saldo</div>
+      <div class="kval">{{ '+' if v.saldo_ciclo > 0 }}{{ v.saldo_ciclo }}</div></div>
+    <div class="kpi {{ 'warn' if real.fila }}"><div class="khead">
+      <span class="kicon">{{ ui.icon('clock') }}</span>Na fila</div>
+      <div class="kval">{{ real.fila }}</div></div>
+  </div>
+  {% if v.saldo_ciclo < 0 %}
+  <p class="dim" style="margin:0 0 .9rem;font-size:.82rem">
+    A oferta sustenta cerca de <b>{{ v.sustenta }} aluno(s)</b> com o currículo atual
+    ({{ v.total }} matriculado(s)). Vagas já contam as ondas do ano — acima desse número,
+    cada aluno a mais vai para a fila por falta de capacidade, não por conflito de horário.</p>
+  {% endif %}
+
+{% if fecha_tudo %}
+  <div style="display:flex;gap:.5rem;color:var(--st-concluida)">{{ ui.icon('checkCircle') }}
+    <span style="color:var(--text)">Com a oferta atual <b>todos os {{ real.total }} alunos
+      concluem</b> todas as áreas em que estão matriculados — e ninguém fica na fila.</span></div>
+{% else %}
+  {# O veredito honesto, com a CAUSA somada: é a causa que escolhe o remédio, e é por isso
+     que "sem vaga" não serve como rótulo único — a mesma tela mostrava "sem vaga" ao lado de
+     motivos que eram conflito de horário, com vaga sobrando na área. #}
+  <div class="aviso-duro" style="margin:0 0 .9rem">
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <span style="color:var(--st-falha)">{{ ui.icon('alert') }}</span>
+      <b>{{ real.total - real.completos }} aluno(s) não concluem o ciclo com a oferta atual —
+        {{ real.fila }} matrícula(s) ficam na fila</b>
+    </div>
+    <ul style="margin:.45rem 0 0;padding-left:1.1rem;font-size:.85rem">
+      {# "as sugestões abaixo" só quando existem: com a tabela vazia o painel prometia um
+         remédio que a tela não mostrava — era esse o vazio de que a comissão reclamou. #}
+      {% if ag.conflito %}<li><b>{{ ag.conflito }}</b> por <b>conflito de horário</b> — há vaga
+        na área, mas só em dia que não cabe na semana desse aluno. Remédio: abrir a área em
+        <b>outro dia</b>{% if v.sugestoes %} (as sugestões abaixo){% endif %}.</li>{% endif %}
+      {% if ag.capacidade %}<li><b>{{ ag.capacidade }}</b> por <b>falta de vaga</b> — todos os
+        grupos da área ficaram cheios. Remédio: mais capacidade (outro dia, capacidade maior
+        ou menos encontros para caber outra onda).</li>{% endif %}
+      {% if ag.sem_grupo %}<li><b>{{ ag.sem_grupo }}</b> por <b>área sem grupo</b> — nenhum
+        grupo fechou nessa área no ciclo. Remédio: cadastrar local ou ajustar o nº de
+        encontros no Validador de locais.</li>{% endif %}
+    </ul>
+    <div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem">
+      {% for nome, n in ag.por_area %}<span class="badge b-risco">{{ nome }} · {{ n }}</span>{% endfor %}
+    </div>
+  </div>
+
+  {# A reconciliação: por que a checagem por FORMA diz outra coisa. Sem este parágrafo o
+     painel exibia "10 de 10 fecham" e "6 de 10 concluem" na mesma tela, sem ligação. #}
+  {% if not v.incompletos %}
+  <p class="dim" style="margin:0 0 .9rem;font-size:.82rem">
+    Pela <b>forma da oferta</b> os {{ v.total }} currículos cabem: existe combinação de dias e
+    horários que fecha todas as áreas de cada aluno. Quem tira gente do ciclo aqui é a
+    <b>disputa por assento</b> — quem passa antes na fila leva a vaga do dia bom, e para quem
+    vem depois só resta grupo em dia que conflita. É por isso que a conta de vagas fecha e
+    ainda assim sobra gente.</p>
+  {% else %}
+  <div class="aviso-duro" style="margin:0 0 .9rem">
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <span style="color:var(--st-falha)">{{ ui.icon('alert') }}</span>
+      <b>{{ v.incompletos }} aluno(s) não fecham nem com assento sobrando</b>
+    </div>
+    <p style="margin:.35rem 0 0;font-size:.85rem">
+      Para esses o problema é a <b>forma</b> da oferta, não a capacidade: as áreas do aluno
+      disputam o mesmo dia entre si.
+      {% for nome, n in v.faltam_por_area %}
+        <br>Fica de fora: <b>{{ nome }}</b> ({{ n }} aluno(s)).
+      {% endfor %}
+    </p>
+  </div>
+  {% endif %}
+
+  {# O QUE ABRIR — UMA tabela, uma linha por ÁREA, medida com o motor.
+     Eram três tabelas ("conflito de forma", "efeito medido", "e se abrirmos mais de um dia?")
+     repetindo a mesma área em quatro linhas com números diferentes, e a comissão não sabia
+     qual delas era a providência. Ficou: a área uma vez, com o dia recomendado; os outros
+     dias como alternativas na própria linha; e a combinação (quando soma mais que uma
+     mudança sozinha) como um plano curto embaixo, não como quarta tabela. #}
+  {% if v.sugestoes_agrupadas %}
+  <div style="margin-top:1rem;border-top:1px dashed var(--border);padding-top:.8rem">
+    <div style="font-weight:600;margin-bottom:.15rem">O que mudar na oferta — efeito medido com o motor</div>
+    <p class="dim" style="margin:0 0 .5rem;font-size:.78rem">
+      Cada linha é <b>uma providência independente</b> (não é preciso fazer todas), de dois
+      tipos: <b>abrir a área num dia novo</b> (cadastrar no passo Áreas e Locais cópias dos
+      locais que ela já tem — nunca mudar o dia do local existente) ou <b>mais vagas por
+      grupo</b> na área, sem local novo. O efeito é uma rodada do motor sobre essa oferta —
+      "tira da fila" é matrícula que passa a ter grupo, "concluem" é aluno que fecha
+      <b>todas</b> as áreas dele.</p>
+    <table class="tbl" style="width:100%;font-size:.85rem">
+      <thead><tr><th>Providência</th><th>Tira da fila</th><th>Concluem</th></tr></thead>
+      <tbody>
+      {% for s in v.sugestoes_agrupadas %}
+        <tr>
+          {# Duas famílias de providência na mesma tabela: quem decide é a causa da fila
+             daquela área (dia não resolve grupo cheio, e vaga não resolve conflito). #}
+          {% if s.tipo == 'capacidade' %}
+          <td><b>+{{ s.delta }} aluno{{ 's' if s.delta != 1 }} por grupo</b> em
+            <b>{{ s.area_nome }}</b>
+            <div class="dim" style="font-size:.78rem;margin-top:.2rem">
+              Sem cadastrar local: os {{ s.grupos }} grupo{{ 's' if s.grupos != 1 }} que a
+              área já tem passam a receber
+              {% if s.capacidades|length == 1 %}{{ s.capacidades[0] }} →
+                <b>{{ s.capacidades[0] + s.delta }} alunos</b>{% else %}mais
+                {{ s.delta }} aluno{{ 's' if s.delta != 1 }} cada (hoje entre
+                {{ s.capacidades|first }} e {{ s.capacidades|last }}){% endif %} —
+              {{ s.vagas_extra }} vaga{{ 's' if s.vagas_extra != 1 }} a mais no ciclo.
+              Depende de o campo comportar.</div></td>
+          {% else %}
+          <td>Abrir <b>{{ s.area_nome }}</b> também na <b>{{ s.dia }}</b>
+            {{ cadastrar(s.dia, s.locais, s.dias_atuais) }}
+            {# os outros dias medidos da MESMA área: alternativa, não tarefa a mais #}
+            {% if s.alternativas %}
+            <div class="dim" style="font-size:.78rem;margin-top:.15rem">
+              ou, em vez da {{ s.dia|lower }}:
+              {% for a in s.alternativas %}{{ '· ' if not loop.first }}{{ a.dia }}
+                ({{ '−%d da fila'|format(a.libera) if a.libera > 0 else 'sem efeito na fila' }}{% if a.ganho > 0 %}, +{{ a.ganho }} concluem{% endif %}){% endfor %}</div>
+            {% endif %}</td>
+          {% endif %}
+          <td>{% if s.libera > 0 %}<span class="badge b-concluida">−{{ s.libera }}</span>
+              {% else %}<span class="dim">—</span>{% endif %}</td>
+          <td>{{ s.completos }} de {{ s.total }}{% if s.ganho > 0 %}
+            <span class="badge b-concluida">+{{ s.ganho }}</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {# A COMBINAÇÃO como plano curto. Só quando são 2+ degraus: com um degrau só ela repetia,
+       numa quarta linha, exatamente a primeira linha da tabela acima. O ganho de duas
+       mudanças não é a soma dos ganhos isolados — por isso os números são os medidos. #}
+    {% if v.escada|length > 1 %}
+    {% set ultimo = v.escada|last %}
+    <div style="margin-top:.8rem;border-left:3px solid var(--st-concluida);padding-left:.6rem">
+      <div style="font-weight:600;font-size:.85rem">Fazendo {{ ultimo.n }} delas juntas:
+        <b style="color:{{ 'var(--st-concluida)' if ultimo.completos == ultimo.total else 'var(--st-risco)' }}">{{ ultimo.completos }} de {{ ultimo.total }} concluem</b>
+        · {{ ultimo.fila }} na fila
+        <span class="dim" style="font-weight:400">(hoje {{ v.base_hoje.completos }} de
+          {{ v.base_hoje.total }}, {{ v.base_hoje.fila }} na fila)</span></div>
+      <ol style="margin:.3rem 0 0;padding-left:1.1rem;font-size:.82rem">
+        {% for s in v.escada %}
+        <li>{{ s.mudancas|last }} <span class="dim">→ {{ s.completos }} de {{ s.total }}
+          concluem, {{ s.fila }} na fila</span></li>
+        {% endfor %}
+      </ol>
+      <p class="dim" style="margin:.35rem 0 0;font-size:.78rem">
+        Cada passo inclui os de cima, e o efeito é o da <b>combinação</b> — não a soma dos
+        ganhos isolados da tabela. Um passo pode aparecer aqui valendo pouco (ou nada)
+        sozinho na tabela e ainda assim ser o que faz o seguinte pagar.
+        {% if ultimo.completos < ultimo.total %}Ainda assim
+          <b>{{ ultimo.total - ultimo.completos }} aluno(s)</b> não concluiriam: cada mudança
+          a mais rende menos que a anterior, e daí em diante a conversa é o nº de matrículas
+          por aluno neste ciclo (o resto vira carry-forward).{% endif %}</p>
+    </div>
+    {# 1 degrau só = a própria 1ª linha da tabela; se nem ele faz alguém concluir, isso
+       precisa estar escrito — senão a tela mostra sugestões e cala sobre o que elas não
+       resolvem. #}
+    {% elif not v.escada or v.escada[0].ganho <= 0 %}
+    <p class="dim" style="margin:.5rem 0 0;font-size:.8rem">
+      Nenhuma combinação testada fez alguém a mais <b>concluir</b> — as mudanças tiram gente
+      da fila, mas o que falta para fechar o ciclo está fora do alcance de dia e vaga
+      (nº de matrículas por aluno, carga das áreas ou nº de encontros dos grupos).</p>
+    {% endif %}
+
+    {% if v.truncou %}
+    {# O que fica de fora é sempre ALTERNATIVA de área já listada, nunca uma área inteira:
+       as hipóteses são medidas em rodízio (a 1ª de cada área primeiro). #}
+    <p class="dim" style="margin:.5rem 0 0;font-size:.78rem">
+      Nem todas as hipóteses foram testadas (a análise tem tempo limitado): mediu-se primeiro
+      a providência mais provável de cada área da fila — dia novo onde a causa é conflito de
+      horário, vaga a mais onde é grupo cheio — e depois as alternativas, até o tempo acabar.</p>
+    {% endif %}
+  </div>
+
+  {# Sem medição possível, mas a FORMA aponta um dia: é a única providência que sobra, então
+     sobe para o corpo do painel em vez de ficar escondida no detalhe do fim. #}
+  {% elif v.destravas_agrupadas %}
+  <div style="margin-top:1rem;border-top:1px dashed var(--border);padding-top:.8rem">
+    <div style="font-weight:600;margin-bottom:.15rem">O que abrir — pelo conflito de horário</div>
+    <p class="dim" style="margin:0 0 .5rem;font-size:.78rem">
+      Cada linha é <b>uma providência independente</b>, e resolve o conflito de horário dos
+      alunos ao lado — concluir de fato ainda depende de haver vaga.</p>
+    <table class="tbl" style="width:100%;font-size:.85rem">
+      <thead><tr><th>Providência</th><th>Saem do conflito</th></tr></thead>
+      <tbody>
+      {% for d in v.destravas_agrupadas %}
+        <tr>
+          <td>Abrir <b>{{ d.area_nome }}</b> também na <b>{{ d.dia }}</b>
+            {{ cadastrar(d.dia, d.locais, d.dias_atuais) }}
+            {% if d.alternativas %}<div class="dim" style="font-size:.78rem;margin-top:.15rem">
+              ou, em vez da {{ d.dia|lower }}: {{ d.alternativas|join(', ') }} —
+              {{ 'serve' if d.alternativas|length == 1 else 'servem' }} igual</div>{% endif %}</td>
+          <td><span class="badge b-concluida">{{ d.alunos }}</span></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  {# Aqui a tela ficava vazia com um "nenhum dia livre resolve" genérico, logo abaixo de um
+     aviso que mandava "abrir a área em outro dia". As duas frases não podiam conviver: se
+     a área da fila já é ofertada em todos os dias, não havia dia novo a testar — e é isso
+     que precisa estar escrito, com o remédio que sobra. #}
+  {% if v.areas_saturadas %}
+  <p class="dim" style="margin:.6rem 0 0;font-size:.82rem">
+    <b style="color:var(--text)">Não há dia novo para testar</b> — as áreas da fila já são
+    ofertadas em todos os dias úteis do ciclo:
+    {% for a in v.areas_saturadas %}<b>{{ a.area_nome }}</b>
+      ({{ a.dias_atuais|join(', ') }}){% if not loop.last %} · {% endif %}{% endfor %}.
+    Como o dia já está coberto, o que resta é <b>mais capacidade</b> nesses grupos (alunos por
+    grupo, ou menos encontros para caber outra onda), <b>reduzir o nº de matrículas por
+    aluno</b> neste ciclo (o resto vira carry-forward) ou rever a carga das áreas.</p>
+  {% else %}
+  <p class="dim" style="margin:.6rem 0 0;font-size:.82rem">
+    Nenhum dia livre resolve com a oferta atual. As saídas são mais capacidade nos grupos,
+    reduzir o nº de matrículas por aluno neste ciclo (o resto vira carry-forward) ou rever a
+    carga das áreas.</p>
+  {% endif %}
+  {% endif %}
+{% endif %}
+
+  <details style="margin-top:.8rem">
+    <summary class="dim" style="cursor:pointer;font-size:.82rem">Ver aluno por aluno
+      (forma da oferta, sem disputa por vaga)</summary>
+    <div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:.4rem">
+      <table class="tbl" style="width:100%;font-size:.82rem">
+        <thead><tr><th>Aluno</th><th>Cabe</th><th>Pico</th><th>Não cabe</th></tr></thead>
+        <tbody>
+        {% for l in v.linhas %}
+          <tr>
+            <td>{{ l.nome }}</td>
+            <td><b style="color:{{ 'var(--st-concluida)' if l.completo else 'var(--st-falha)' }}">
+              {{ l.fecham }}/{{ l.matriculadas }}</b></td>
+            <td class="dim">{{ '%g'|format(l.pico) }}h</td>
+            <td class="dim">{{ l.faltam|join(', ') or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="dim" style="margin:.4rem .5rem .5rem;font-size:.78rem">
+        Esta tabela ignora capacidade de propósito: "cabe" = existe combinação de dias que
+        fecha as áreas do aluno se houver assento. Quem inclui a disputa por assento é a
+        simulação no topo do painel.</p>
+    </div>
+    {# A leitura por FORMA do "que dia abrir" fica AQUI, junto do resto que ignora capacidade
+       — quando há medição com o motor ela é a resposta, e as duas listas lado a lado eram
+       justamente as tabelas repetidas de que a comissão reclamou. #}
+    {% if v.sugestoes_agrupadas and v.destravas_agrupadas %}
+    <p class="dim" style="margin:.5rem 0 0;font-size:.78rem">
+      Só pelo conflito de horário (ainda sem contar vaga), sairiam do conflito:
+      {% for d in v.destravas_agrupadas %}{{ '· ' if not loop.first }}<b>{{ d.area_nome }}</b>
+        na {{ d.dia|lower }} ({{ d.alunos }} aluno{{ 's' if d.alunos != 1 }}){% endfor %}.</p>
+    {% endif %}
+  </details>
+</div></div>

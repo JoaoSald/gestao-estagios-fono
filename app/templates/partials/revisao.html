@@ -12,7 +12,66 @@
     <div class="kpi"><div class="khead"><span class="kicon">{{ ui.icon('layers') }}</span>Parciais</div><div class="kval">{{ relatorio.alunos_parcial }}</div></div>
     <div class="kpi {{ 'warn' if relatorio.aguardando }}"><div class="khead"><span class="kicon">{{ ui.icon('clock') }}</span>Aguardando</div><div class="kval">{{ relatorio.aguardando|length }}</div></div>
   </div>
-  {% if relatorio.avisos %}<ul class="dim" style="font-size:.82rem">{% for a in relatorio.avisos %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+  {% if fechamento and fechamento.tem_alerta %}
+  <div class="aviso-fechamento" style="border:1px solid color-mix(in srgb,var(--st-risco) 45%,transparent);border-left:4px solid var(--st-risco);border-radius:12px;padding:1rem 1.1rem;margin:.2rem 0 1.1rem;background:color-mix(in srgb,var(--st-risco) 8%,var(--surface));box-shadow:0 8px 24px -14px color-mix(in srgb,var(--st-risco) 60%,transparent)">
+    <div style="display:flex;gap:.55rem;align-items:center;margin-bottom:.5rem">
+      <span style="color:var(--st-risco);font-size:1.15rem">{{ ui.icon('alert') }}</span>
+      <b style="color:var(--st-risco);font-size:1rem">Revise antes de fechar — nem tudo fecha neste ciclo</b>
+    </div>
+
+    {% if fechamento.perdidos %}
+      {% set perdidos = fechamento.perdidos %}
+      {% include 'partials/locais_perdidos.html' %}
+    {% endif %}
+
+    {% if fechamento.fila %}
+    <div style="margin:.6rem 0 0">
+      {# NÃO chame tudo de "sem vaga": o motor separa a causa, e era contraditório ler
+         "sem vaga" no título com "faltam 1h30 entre áreas no mesmo dia" na coluna Motivo —
+         com vaga sobrando na área. A causa é o que decide o remédio. #}
+      <div style="font-weight:600;margin-bottom:.3rem">{{ fechamento.fila|length }} matrícula(s) não couberam neste ciclo — vão para a fila / próximo ciclo</div>
+      <ul class="dim" style="margin:0 0 .5rem;padding-left:1.1rem;font-size:.82rem">
+        {% if fechamento.n_conflito %}<li><b style="color:var(--text)">{{ fechamento.n_conflito }} por conflito de horário</b> — há vaga na área, mas só em dia que não cabe na semana do aluno (sobreposição, intervalo de 1h30 ou teto de 30h).</li>{% endif %}
+        {% if fechamento.n_capacidade %}<li><b style="color:var(--text)">{{ fechamento.n_capacidade }} por falta de vaga</b> — todos os grupos da área ficaram cheios.</li>{% endif %}
+        {% if fechamento.n_sem_grupo %}<li><b style="color:var(--text)">{{ fechamento.n_sem_grupo }} por área sem grupo</b> — nenhum grupo fechou nessa área no ciclo.</li>{% endif %}
+      </ul>
+      <div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.5rem">
+        {% for area, n in fechamento.fila_por_area %}<span class="badge b-risco">{{ area }} · {{ n }}</span>{% endfor %}
+      </div>
+      <details>
+        <summary class="dim" style="cursor:pointer;font-size:.82rem">Ver quem ficou de fora</summary>
+        <div style="max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:.4rem">
+          <table class="tbl" style="font-size:.82rem;width:100%">
+            <thead><tr><th>Área</th><th>Aluno</th><th>Motivo</th></tr></thead>
+            <tbody>
+            {% for f in fechamento.fila %}<tr><td>{{ f.area }}</td><td>{{ f.aluno }}</td><td class="dim">{{ f.motivo }}</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+    {% endif %}
+
+    {% if fechamento.em_risco %}
+    <div class="dim" style="margin-top:.55rem;font-size:.82rem">{{ fechamento.em_risco }} grupo(s) com conclusão prevista <b>após o fim do ciclo</b> — risco de não fechar a carga horária.</div>
+    {% endif %}
+
+    {# Por que sobrou gente na fila? — e, principalmente, O QUE ABRIR. O painel roda o motor
+       sobre ofertas hipotéticas e devolve as mudanças que fazem os alunos concluírem. #}
+    <div style="margin-top:.7rem;border-top:1px dashed var(--border);padding-top:.6rem">
+      {% set fc_rotulo = 'Por que sobrou gente — e o que abrir para resolver' %}
+      {% set fc_dica = 'Roda o motor sobre ofertas hipotéticas e mostra qual área abrir em qual dia, com o efeito medido. Leva alguns segundos.' %}
+      {% include 'partials/fecha_ciclo_botao.html' %}
+    </div>
+
+    <div class="dim" style="margin-top:.6rem;font-size:.8rem;border-top:1px dashed var(--border);padding-top:.5rem">
+      Isto é só um aviso — você pode <b>Confirmar e iniciar</b> mesmo assim. Para fechar mais
+      vagas, ajuste o <b>nº de encontros</b> no <b>Validador de locais</b> (passo Áreas e
+      Locais, ou o mesmo painel antes de gerar), adicione locais/dias ou ajuste as
+      matrículas, e clique em <b>Gerar de novo</b>.
+    </div>
+  </div>
+  {% elif relatorio.avisos %}<ul class="dim" style="font-size:.82rem">{% for a in relatorio.avisos %}<li>{{ a|safe }}</li>{% endfor %}</ul>{% endif %}
 
   {# Grupos formados — mesma visão da tela de Estágios (sem trava; nada começou ainda) #}
   {% if grupos and grupos.areas %}
@@ -39,13 +98,13 @@
     <div style="margin:.7rem 0 .4rem">{{ ui.area_pill(area.nome, area.cor) }}</div>
     {% for l in area.locais %}
       <div class="card" data-filtro-local="{{ l.local_id }}" style="margin-bottom:.6rem"><div class="card-head"><div><b>{{ l.campo }}</b>
-        <div class="hint">{{ l.dia }} · {{ l.turno }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }} · cap. {{ l.cap }}</div></div></div>
+        <div class="hint">{{ l.dia }} · {{ l.turno }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }} · cap. {{ l.cap }}{% if l.passagem_grupo %} · <span class="badge b-iniciar" title="Passagem de grupo: o último encontro de um grupo é o 1º do próximo (1 dia de sobreposição)">{{ ui.icon('shuffle') }} passagem de grupo</span>{% endif %}</div></div></div>
         <div class="card-body" style="padding-top:.5rem">
         {% for g in l.ondas %}
           <div style="margin-bottom:.4rem"><div class="flex between" style="display:flex;justify-content:space-between;align-items:center">
             <div><b>Grupo {{ g.onda }}</b> <span style="font-weight:700;color:{{ 'var(--st-concluida)' if g.cheia else 'var(--st-aguardando)' }}">{{ g.ocup }}/{{ g.cap }}</span>
               {% if g.previsto %}<span class="badge b-aguardando"><span class="dt"></span>na fila</span>{% else %}<span class="badge b-andamento"><span class="dt"></span>em andamento</span>{% endif %}</div>
-            <span class="dim" style="font-size:.8rem">{{ g.data_inicio.strftime('%d/%m') }} → {{ g.data_fim.strftime('%d/%m/%Y') }}</span></div>
+            <span class="dim" style="font-size:.8rem">{% if g.passagem_inicio %}<span style="color:#f43f5e;font-weight:700" title="Dia de passagem — 1º encontro compartilhado com o grupo anterior">⇄ </span>{% endif %}{{ g.data_inicio.strftime('%d/%m') }} → {{ g.data_fim.strftime('%d/%m/%Y') }}{% if g.passagem_fim %}<span style="color:#f43f5e;font-weight:700" title="Dia de passagem — último encontro compartilhado com o próximo grupo"> ⇄</span>{% endif %}</span></div>
             {% for m in g.membros %}<div class="roster-item"><span class="roster-dot" style="background:{{ area.cor }}"></span>
               <div style="flex:1"><div class="rn">{{ m.nome }}{% if m.fixado %} <span class="badge b-iniciar">montado</span>{% else %} <span class="dim" style="font-size:.72rem">auto</span>{% endif %}{% if m.aviso %} <span class="badge b-risco" title="{{ m.aviso }}">{{ ui.icon('alert') }}</span>{% endif %}</div></div></div>
             {% else %}<div class="dim">—</div>{% endfor %}
@@ -81,12 +140,81 @@
         <div style="display:flex;gap:.5rem;color:var(--st-concluida)">{{ ui.icon('checkCircle') }}<span style="color:var(--text)">Tudo pronto — nenhuma pendência.</span></div>
       {% endif %}
     </div></div>
+  {# O validador de locais NÃO se repete aqui: ele é o instrumento do passo "Áreas e
+     Locais" (passo3b.html), onde a oferta é saneada com edição inline do nº de encontros.
+     Repetir a tabela na Revisão só poluía — o que ainda importa nesta tela é o número:
+     `validacao.n_falha` alimenta o aviso do card de Gerar, logo abaixo. #}
+
+  {# Oferta × demanda: a fila prevista antes de gerar #}
+  {% include 'partials/demanda_areas.html' %}
+
+  {# A PREVISÃO da geração — uma rodada do motor sobre a oferta atual. É o mesmo número que
+     vai aparecer depois de clicar em Gerar, e é o que reconcilia esta tela com a próxima:
+     as contas acima são de capacidade e não veem conflito de horário. #}
+  {% if previsao and previsao.total %}
+  {% set p = previsao %}
+  <div class="card" style="margin-top:1rem"><div class="card-head"><div>
+    <h3>O que a geração vai entregar</h3>
+    <div class="card-sub">Prévia rodando o mesmo motor da geração sobre a oferta atual —
+      inclui a disputa por vaga entre os alunos, que a tabela de vagas não vê.</div></div>
+    <span class="badge {{ 'b-concluida' if p.completos >= p.total else 'b-risco' }}">
+      <span class="dt"></span>{{ p.completos }} de {{ p.total }} concluem</span>
+  </div><div class="card-body">
+    {% if p.completos >= p.total %}
+      <div style="display:flex;gap:.5rem;color:var(--st-concluida)">{{ ui.icon('checkCircle') }}
+        <span style="color:var(--text)">Todos os {{ p.total }} alunos concluem todas as áreas
+          e ninguém fica na fila.</span></div>
+    {% else %}
+      <div style="display:flex;gap:.5rem;align-items:flex-start">
+        <span style="color:var(--st-risco)">{{ ui.icon('alert') }}</span>
+        <div><b>{{ p.total - p.completos }} aluno(s) não concluiriam</b> — {{ p.fila }}
+          matrícula(s) ficariam na fila:
+          <span class="dim" style="font-size:.85rem">
+          {%- set ag = p.fila_agrupada %}
+          {%- if ag.conflito %} {{ ag.conflito }} por conflito de horário (há vaga, o dia não
+            serve){% endif %}{% if ag.capacidade %}{{ ' · ' if ag.conflito }}{{ ag.capacidade }}
+            por falta de vaga{% endif %}{% if ag.sem_grupo %}{{ ' · ' if ag.conflito or ag.capacidade }}{{ ag.sem_grupo }}
+            por área sem grupo{% endif %}.</span>
+          <div class="dim" style="font-size:.82rem;margin-top:.25rem">Use o botão abaixo para
+            ver <b>qual área abrir em qual dia</b> — as sugestões são medidas com o motor.</div>
+        </div>
+      </div>
+    {% endif %}
+    <div style="margin-top:.7rem;border-top:1px dashed var(--border);padding-top:.6rem">
+      {% include 'partials/fecha_ciclo_botao.html' %}
+    </div>
+  </div></div>
+  {% else %}
+  <div class="card" style="margin-top:1rem"><div class="card-body">
+    {% include 'partials/fecha_ciclo_botao.html' %}
+  </div></div>
+  {% endif %}
+
   <div class="card" style="margin-top:1rem"><div class="card-body" style="text-align:center;padding:1.6rem">
-    <h3>Pronto para gerar a escala</h3>
+    {% set falhas = validacao.n_falha if validacao else 0 %}
+    {# "Pronto para gerar" só quando a PRÉVIA fecha também: dizer "pronto" logo acima de
+       "4 alunos não concluiriam" era a mesma contradição de antes, agora dentro da tela. #}
+    {% set sobra = previsao and previsao.total and previsao.completos < previsao.total %}
+    <h3>{{ 'Gerar a escala com a oferta atual?' if falhas or sobra else 'Pronto para gerar a escala' }}</h3>
     <p class="muted">O motor cria as alocações e sessões (grade-primeiro), honrando a montagem manual.</p>
-    <button class="btn btn-primary" style="margin-top:.6rem" hx-post="/ui/bootstrap/gerar"
+    {% if falhas %}
+    <p style="color:var(--st-risco);font-size:.85rem;margin:.4rem 0 0">
+      {{ ui.icon('alert') }} {{ falhas }} local(is) não vão gerar grupo — essa capacidade é
+      perdida. Ajuste o nº de encontros no <b>Validador de locais</b> (passo <b>Áreas e
+      Locais</b>) antes de gerar, ou siga assim se for a decisão.
+    </p>
+    {% endif %}
+    {% if sobra %}
+    <p style="color:var(--st-risco);font-size:.85rem;margin:.4rem 0 0">
+      {{ ui.icon('alert') }} Pela prévia, {{ previsao.total - previsao.completos }} aluno(s)
+      ficariam sem concluir. Gerar assim é uma decisão válida (a escala é editável e a fila
+      vira carry-forward) — ou ajuste a oferta antes, com o diagnóstico acima.
+    </p>
+    {% endif %}
+    <button class="btn {{ 'btn-secondary' if falhas or sobra else 'btn-primary' }}" style="margin-top:.6rem"
+            hx-post="/ui/bootstrap/gerar"
             hx-target="#revisao-wrap" hx-swap="innerHTML" hx-indicator="#gen-stage" hx-disabled-elt="this">
-      {{ ui.icon('sparkles') }} Gerar escala</button>
+      {{ ui.icon('sparkles') }} {{ 'Gerar escala mesmo assim' if falhas or sobra else 'Gerar escala' }}</button>
   </div></div>
 
   {# overlay exibido SÓ enquanto o motor gera (htmx-indicator: invisível/fixo até o request) #}

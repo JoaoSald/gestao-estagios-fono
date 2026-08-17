@@ -38,7 +38,7 @@
           <button class="icon-btn" title="Remover (volta à fila)" hx-post="/ui/escala/remover"
                   hx-vals='{"aluno_id": {{ m.aluno_id }}, "grupo_id": {{ g.id }}}'
                   hx-target="#board" hx-swap="innerHTML"
-                  hx-confirm="Remover {{ m.nome }} desta caixa? Volta para a fila.">{{ ui.icon('trash') }}</button>
+                  hx-confirm="Remover {{ m.nome }} deste grupo? Volta para a fila.">{{ ui.icon('trash') }}</button>
         </span>
       </div>
       {% endfor %}
@@ -46,7 +46,7 @@
     {% endfor %}
   </div>
 {% else %}
-  <div class="empty" style="padding:2rem"><span class="dim">Nenhuma caixa ocupada. Clique em “Gerar escala”.</span></div>
+  <div class="empty" style="padding:2rem"><span class="dim">Nenhum grupo ocupado. Clique em “Gerar escala”.</span></div>
 {% endfor %}
 
 {% if fila %}

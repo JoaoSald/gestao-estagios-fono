@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import DomainError, NaoEncontrado
+from app.core.rotulos import rotulo
 from app.models.aluno import Aluno, Matricula
 from app.models.catalogo import Area
 from app.models.enums import FaseArea, StatusMatricula
@@ -74,7 +75,7 @@ def sincronizar(db: Session, aluno: Aluno, itens: list) -> list[str]:
             raise DomainError(f"A área '{area.nome}' é composta e não é matriculável.")
         if item.status == StatusMatricula.em_andamento and area.fase != fase:
             raise DomainError(
-                f"A área '{area.nome}' não pertence à fase do aluno ({fase.value})."
+                f"A área '{area.nome}' não pertence à fase do aluno ({rotulo(fase)})."
             )
         desejadas[item.area_id] = item.status
 

@@ -34,6 +34,9 @@ class Relatorio:
     em_risco: int = 0            # conclusões previstas após o fim do ciclo
     aguardando: list[Aguardando] = field(default_factory=list)
     avisos: list[str] = field(default_factory=list)
+    # Mesmo fato dos `avisos` de molde, em dado estruturado (área/campo/datas/sugestão),
+    # para a tela pintar por área e oferecer o ajuste de encontros.
+    locais_perdidos: list[molde.LocalSemGrupo] = field(default_factory=list)
 
 
 def _mapear_matriculas(db: Session, ciclo: Ciclo):
@@ -71,6 +74,11 @@ def gerar_escala(db: Session, ciclo: Ciclo | None = None) -> Relatorio:
     # 0. Pins a preservar (§5 — rascunho manual) — capturar ANTES de qualquer wipe.
     pins = persistencia.capturar_pins(db, ciclo)
 
+    # 0.1 No bootstrap, desfaz conclusões derivadas de gerações anteriores ANTES de ler as
+    # matrículas — senão o aluno "concluído" pelo calendário sai do filtro `em_andamento`
+    # e desaparece da escala a cada Gerar de novo.
+    encontros.reverter_conclusoes_de_rascunho(db, ciclo)
+
     # 1. Ordem da fila (§6.3): derivada de prioridade + matrícula.
     reindex_por_prioridade(db, ciclo.id)
     db.flush()
@@ -84,7 +92,8 @@ def gerar_escala(db: Session, ciclo: Ciclo | None = None) -> Relatorio:
 
     # 2. Molde (Fase 1, §4) → pins (Fase 2, §5) → preenchimento + consolidação (Fase 3, §6).
     avisos: list[str] = []
-    caixas = molde.materializar_molde(db, ciclo, ctx, avisos=avisos)
+    perdidos: list[molde.LocalSemGrupo] = []
+    caixas = molde.materializar_molde(db, ciclo, ctx, avisos=avisos, perdidos=perdidos)
     compromissos: dict[int, list] = {}
     preenchimento.aplicar_pins(caixas, pins, bloqueados, compromissos)
     aguardando: list[Aguardando] = []
@@ -93,7 +102,11 @@ def gerar_escala(db: Session, ciclo: Ciclo | None = None) -> Relatorio:
 
     # 3. Persistir + conclusões.
     persistencia.persistir(db, ciclo, caixas, lambda a, ar: matricula_id.get((a, ar)))
-    encontros.atualizar_conclusoes(db, ciclo)
+    # Conclusão é derivada de sessões CUMPRIDAS — só faz sentido com o ciclo em operação.
+    # Em rascunho nada aconteceu ainda, e marcar presença retroativa fecharia matrículas
+    # que a próxima geração deixaria de fora (§8.5 vale a partir do em_andamento).
+    if ciclo.status == StatusCiclo.em_andamento:
+        encontros.atualizar_conclusoes(db, ciclo)
 
     # 4. Escala em dia: apaga o banner e a fila de remanejo; registra a atividade.
     ciclo.escala_desatualizada = False
@@ -104,13 +117,14 @@ def gerar_escala(db: Session, ciclo: Ciclo | None = None) -> Relatorio:
     ))
     common.commit(db, "Não foi possível gerar a escala.")
 
-    return _montar_relatorio(ciclo, alunos, caixas, areas_por_aluno, aguardando, avisos)
+    return _montar_relatorio(ciclo, alunos, caixas, areas_por_aluno, aguardando, avisos, perdidos)
 
 
 def _montar_relatorio(
-    ciclo: Ciclo, alunos, caixas, areas_por_aluno, aguardando, avisos,
+    ciclo: Ciclo, alunos, caixas, areas_por_aluno, aguardando, avisos, perdidos=None,
 ) -> Relatorio:
-    rel = Relatorio(total_alunos=len(alunos), caixas=len(caixas), avisos=avisos, aguardando=aguardando)
+    rel = Relatorio(total_alunos=len(alunos), caixas=len(caixas), avisos=avisos,
+                    aguardando=aguardando, locais_perdidos=list(perdidos or []))
     rel.alocados = sum(len(c.ocupantes) for c in caixas)
     rel.caixas_ocupadas = sum(1 for c in caixas if c.ocupantes)
     rel.caixas_fracas = sum(1 for c in caixas if 0 < len(c.ocupantes) < c.capacidade)

@@ -14,8 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflito, DomainError, NaoEncontrado
-from app.models.aluno import Aluno, Matricula, RestricaoAlunoLocal
-from app.models.enums import StatusAlocacao
+from app.models.aluno import Aluno, RestricaoAlunoLocal
 from app.models.escala import Alocacao, GrupoAluno
 from app.models.local import Local
 from app.services import common
@@ -65,7 +64,7 @@ def mover(db: Session, aluno_id: int, grupo_origem: int, grupo_destino: int) -> 
     origem = _caixa(mv, grupo_origem, "Grupo de origem")
     destino = _caixa(mv, grupo_destino, "Grupo de destino")
     if origem.area_id != destino.area_id:
-        raise DomainError("Só é possível mover o aluno para uma caixa da MESMA área.")
+        raise DomainError("Só é possível mover o aluno para um grupo da MESMA área.")
     if aluno_id not in origem.ocupantes:
         raise DomainError("O aluno não está no grupo de origem.")
 
@@ -159,34 +158,6 @@ def substituir(
     common.registrar_atividade(db, aluno.ciclo, "Alunos trocados de grupo (substituição 1-a-1).")
     common.commit(db, "Não foi possível substituir os alunos.")
     return ResultadoAjuste(True)
-
-
-def concluir_grupo(db: Session, local_id: int) -> int:
-    """Conclui os alunos ATIVOS de um local (§8.5 'concluir grupo') e libera as vagas.
-
-    Marca a matrícula como concluída (data de hoje) e a alocação como concluída. Devolve
-    quantos foram concluídos. Espelha `concluirGrupoLocal` do protótipo.
-    """
-    from datetime import date
-    from app.models.aluno import Aluno
-    from app.models.enums import StatusMatricula
-    local = db.get(Local, local_id)
-    alocs = db.scalars(select(Alocacao).where(
-        Alocacao.local_id == local_id, Alocacao.status == StatusAlocacao.ativa)).all()
-    n = 0
-    hoje = date.today()
-    for a in alocs:
-        m = db.get(Matricula, a.matricula_id)
-        if m is not None and m.status != StatusMatricula.concluida:
-            m.status = StatusMatricula.concluida
-            m.data_conclusao = m.data_conclusao_prevista or hoje
-        a.status = StatusAlocacao.concluida
-        n += 1
-    ciclo = db.get(Aluno, alocs[0].aluno_id).ciclo if alocs else None
-    if ciclo is not None:
-        common.registrar_atividade(db, ciclo, f"Grupo concluído em {local.campo if local else local_id} — {n} aluno(s), vagas liberadas.")
-    common.commit(db, "Não foi possível concluir o grupo.")
-    return n
 
 
 def travar(db: Session, grupo_id: int, aluno_id: int, valor: bool) -> None:

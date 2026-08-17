@@ -39,7 +39,7 @@ A modelagem se organiza em 8 módulos (os `TableGroup` do DBML):
 | **Ciclo** (orquestração) | `ciclos` |
 | **Apoio** (catálogos permanentes) | `areas`, `docentes`, `preceptores` |
 | **Alunos** | `alunos`, `matriculas`, `restricoes_aluno_local` |
-| **Estágio** (motor de alocação) | `locais`, `locais_dias`, `alocacoes`, `sessoes`, `grupos`, `grupo_alunos` |
+| **Estágio** (motor de alocação) | `locais`, `alocacoes`, `sessoes`, `grupos`, `grupo_alunos` |
 | **Calendário institucional** | `afastamentos`, `indisponibilidades_local`, `eventos` |
 | **Operação** | `fila_remanejo`, `atividade` |
 | **Histórico** | `historico` |
@@ -97,32 +97,36 @@ Estas tabelas **atravessam ciclos** — sobrevivem de um ano para o outro e não
 
 **2. Módulo/Área:** Apoio / Catálogo permanente.
 
-**3. Objetivo:** Guarda o catálogo fixo das **10 áreas** do curso (Audiologia I, Motricidade Orofacial, Linguagem Infantil, Saúde Coletiva, Audiologia II, LAD, Voz e os 3 cenários hospitalares). Existe para padronizar as competências que todo aluno precisa cumprir e para definir, por área, a carga exigida, a **fase** a que pertence (5º ou 6º/7º) e se é **pré-requisito** dos demais estágios.
+**3. Objetivo:** Guarda o catálogo fixo das áreas do curso (Audiologia I, Motricidade Orofacial, Linguagem Infantil, Saúde Coletiva, Audiologia II, LAD, Voz e os cenários hospitalares). Existe para padronizar as competências que todo aluno precisa cumprir e para definir, por área, a carga exigida, a **fase** a que pertence (`7` ou `9_10`) e se é **pré-requisito**. A tabela também modela **áreas compostas** (containers) e suas **sub-áreas** (ver campos `composta`/`area_mae_id`).
 
 **4. Funcionalidades relacionadas:**
 - Cálculo de progresso por área do aluno (X/N áreas **da fase** concluídas).
-- Cadastro de locais (cada local pertence a uma área).
-- Matrícula do aluno por área.
-- Filtro das áreas por fase no cadastro do aluno (5º vê só Audiologia I; 6º/7º vê as demais).
+- Cadastro de locais (cada local pertence a uma área **leaf** — nunca a uma composta).
+- Matrícula do aluno por área/sub-área.
+- Filtro das áreas por fase no cadastro do aluno (7º vê só Audiologia I; 9º/10º vê as demais).
 - Cores das pílulas/badges de área na interface.
 
 **5. Principais campos:**
 - `nome` — identifica a área; **único**.
-- `carga_exigida` — horas obrigatórias para concluir a área (ex.: 160h); usada para creditar carga no progresso. *(A conclusão em si é dirigida por **encontros**, não por horas — ver `matriculas` §7 e Regras de Negócio §8.)*
-- `fase` — `5` (mini-ciclo, só Audiologia I) ou `6_7` (demais áreas); define quais áreas cada aluno enxerga.
-- `pre_requisito` — booleano; **só Audiologia I = `true`**. Bloqueia a alocação das áreas de 6º/7º enquanto não concluída.
+- `carga_exigida` — horas obrigatórias para concluir a área/sub-área; usada para creditar carga no progresso. *(A conclusão em si é dirigida por **encontros**, não por horas — ver `matriculas` §7 e Regras de Negócio §8.)* Validação: `> 0`.
+- `fase` — `7` (mini-ciclo, só Audiologia I) ou `9_10` (demais áreas; **default**); define quais áreas cada aluno enxerga.
+- `pre_requisito` — booleano; **só Audiologia I = `true`**. Índice único **parcial**: no máximo **uma** área pré-requisito. É responsabilidade compartilhada das áreas de 9º/10º (a coordenação confere).
+- `composta` — booleano; **área-mãe/container** (ex.: **Audiologia II**, **Hospitalar**). Uma área composta **não é matriculável nem alocável** (não tem locais) — o aluno cursa as **sub-áreas** (leaf).
+- `area_mae_id` — FK **self**: numa **sub-área**, aponta para a área-mãe composta. Área simples ou mãe = `NULL`. A CH da mãe = **soma** das CHs das sub-áreas; matrícula e conclusão são **por sub-área**.
 - `cor` — cor `#hex` usada na UI para a badge da área.
 
 **6. Relacionamentos:**
-- `1:N` com `locais` (uma área tem vários cenários de prática).
-- `1:N` com `matriculas` (uma área é cursada por vários alunos).
+- `1:N` com `locais` (uma área **leaf** tem vários cenários de prática).
+- `1:N` com `matriculas` (uma área/sub-área é cursada por vários alunos).
+- **Auto-relacionamento** `area_mae_id → areas.id` (composta 1:N sub-áreas).
 
 **7. Regras de negócio:**
 - `nome` é **único**.
 - Já vem **pré-cadastrada** — por ser catálogo fixo, não precisa de passo no bootstrap.
 - Não tem `ciclo_id`: é permanente e compartilhada entre todos os anos.
-- **Fase determina a matriz do aluno:** 5º semestre cursa só a área com `fase = 5` (Audiologia I); 6º/7º cursa as áreas `fase = 6_7`.
-- **Pré-requisito bloqueante:** nenhuma área de 6º/7º é alocada enquanto a área `pre_requisito` (Audiologia I) não estiver concluída.
+- **Fase determina a matriz do aluno:** 7º semestre cursa só a área com `fase = 7` (Audiologia I); 9º/10º cursa as áreas `fase = 9_10`.
+- **Compostas são containers:** matrícula, alocação e conclusão acontecem **na sub-área**, nunca na mãe; o progresso da mãe é a agregação das filhas.
+- **Pré-requisito (Audiologia I):** responsabilidade compartilhada das áreas de 9º/10º — conferência da coordenação (a regra vive no motor/aplicação, não como bloqueio de banco).
 
 ### Tabela: `docentes`
 
@@ -205,8 +209,9 @@ Estas tabelas **atravessam ciclos** — sobrevivem de um ano para o outro e não
 - `ciclo_id` — a que ano o aluno pertence.
 - `nome` / `matricula` — identificação.
 - `email` — destino das notificações do sistema (padrão `matricula@aluno.ufcspa.edu.br`).
-- `semestre` — semestre atual, que define a **fase**: `≤ 5` → fase 5 (mini-ciclo, só Audiologia I); `≥ 6` → fase 6/7 (demais áreas). No ciclo convivem os dois grupos.
-- `ordenamento` — **prioridade na alocação: menor valor = maior prioridade**. É por esta ordem que o motor distribui as vagas.
+- `semestre` — semestre atual, que define a **fase**: `7` → fase `7` (mini-ciclo, só Audiologia I); `9`/`10` → fase `9_10` (demais áreas). No ciclo convivem os dois grupos.
+- `ordenamento` — **ordem de alocação: menor valor = maior prioridade**. É por esta ordem que o motor distribui as vagas. **DERIVADA (AR-8):** por fase, os alunos com `prioridade = true` vêm primeiro, depois por matrícula — **não é mais ordenação manual** livre.
+- `prioridade` — booleano (AR-8): marcado no bootstrap para **posicionar o aluno à mão** na Montagem dos grupos; o motor **honra a colocação (pin)** e preenche o restante pela regra derivada.
 
 **6. Relacionamentos:**
 - `N:1` com `ciclos` (vários alunos por ciclo).
@@ -238,6 +243,7 @@ Estas tabelas **atravessam ciclos** — sobrevivem de um ano para o outro e não
 - `data_matricula` — quando o aluno começou a área.
 - `data_conclusao_prevista` — **calculada pelo motor**: a data da última sessão que fecha a carga exigida.
 - `data_conclusao` — preenchida quando a área efetivamente conclui.
+- `motivo_interrupcao` / `data_interrupcao` — preenchidos quando o estágio é **interrompido** por motivo extraordinário (desmatrícula; `status = interrompida`, §6.1).
 
 **6. Relacionamentos:**
 - `N:1` com `alunos`.
@@ -304,18 +310,21 @@ Este é o coração operacional: `locais` = a oferta; `alocacoes` = ONDE o aluno
 - `unidade` — a unidade/instituição do cenário (agrupa campos de um mesmo local físico).
 - `campo` — o cenário físico em texto (Clínica-Escola, Hospital, UBS…).
 - `preceptor_tipo` / `preceptor_id` — **preceptor de campo** do local (FK **polimórfica**): `externo` → aponta para `preceptores`; `docente` → aponta para `docentes` (docente-como-preceptor); ambos nulos → sem preceptor separado (só o docente responde). **Cobertura:** o encontro só cai quando docente **e** preceptor estão afastados no mesmo dia — se um dos dois está presente, o estágio acontece.
-- `dia_semana` / `turno` / `hora_inicio` / `hora_fim` — a janela; usados no conflito de horário e no **intervalo mínimo de 2h entre áreas no mesmo dia**. Locais **multi-dia** guardam os dias adicionais em `locais_dias` (no protótipo, um array `dias`).
-- `capacidade` — vagas simultâneas (o antigo `grupo_aluno`).
-- `numero_encontros` — **total fixo de encontros do cenário, vindo do ESPELHO** (ex.: 18, 40, 20). É o eixo do motor: define quantas sessões agendar e quando a área conclui (encontros feitos ≥ total).
+- `dia_semana` / `turno` / `hora_inicio` / `hora_fim` — a janela; usados na sobreposição de horário e no **intervalo mínimo de 1h30 entre áreas no mesmo dia** (áreas diferentes podem dividir o dia, inclusive o mesmo turno). **Modelo SLOT:** cada `local` é **1 (campo + dia + turno)** — um mesmo `campo` pode ter **N slots** (dias e/ou turnos diferentes, inclusive o mesmo dia em turnos distintos), cada um uma linha própria com seus responsáveis. (Substitui a antiga tabela `locais_dias` / o array `dias` do protótipo.)
+- `capacidade` — vagas simultâneas = **tamanho do grupo** (o antigo `grupo_aluno`).
+- `horas_sessao` — **horas reais de cada encontro** (desconta almoço no cenário integral). É a base do `numero_encontros` e do teto de **30h/semana**.
+- `numero_encontros` — **total fixo de encontros do cenário** = `teto(carga_horaria / horas_sessao)`. É o eixo do motor: define quantas sessões agendar e quando a área conclui (encontros feitos ≥ total).
 - `carga_horaria` — horas que o estágio nesse local cobre (consequência dos encontros × duração; informação secundária).
 - `passagem_grupo` — **passagem de grupo**: se `true`, o último encontro de um grupo é o primeiro do próximo (1 dia de sobreposição). Na projeção de grupos, a onda seguinte começa no último dia da anterior; se `false`, começa depois.
 - `ativo` — desativação sem apagar histórico.
 
 **6. Relacionamentos:**
-- `N:1` com `ciclos`, `areas` e `docentes`.
-- `1:N` com `locais_dias` (dias adicionais de um local multi-dia).
+- `N:1` com `ciclos`, `areas` e `docentes` (docente **opcional** — ver AR-7).
+- Preceptor de campo por **FK polimórfica** (`preceptor_tipo`/`preceptor_id`): `externo` → `preceptores`; `docente` → `docentes`.
 - `1:N` com `alocacoes` (um local recebe vários alunos, até o limite de `capacidade`).
 - `1:N` com `indisponibilidades_local` (um local pode ter vários períodos indisponíveis).
+- `1:N` com `grupos` (as ondas daquele local).
+- `N:1` com `restricoes_aluno_local` no sentido inverso (locais bloqueados por aluno).
 
 **7. Regras de negócio:**
 - Validação: `capacidade > 0`.
@@ -409,13 +418,13 @@ Este é o coração operacional: `locais` = a oferta; `alocacoes` = ONDE o aluno
 **7. Regras de negócio (grade-primeiro — ver `REGRAS_MOTOR_ESCALA.md`):**
 - **Materialização:** o molde de **todos os grupos do ciclo** é gerado no **bootstrap**, por **(local, dia)**, fatiando as datas viáveis (dia fixo, pulando feriado/sem-cobertura) em blocos de `N = teto(carga / horas_sessao)`. Contam-se **sessões viáveis**, não semanas.
 - **Cascata:** ondas do mesmo slot são blocos **consecutivos**; a seguinte começa quando a anterior fecha, até a última que **cabe no ciclo** (parcial → não vira grupo). Com **`locais.passagem_grupo`**, começa no **último dia** da anterior (sobreposição de 1 dia); sem, depois.
-- **Preenchimento:** por `ordenamento`, objetivo **cobertura > lotação**, caixa **mais cheia com vaga**; 4 restrições duras (**30h**, **2h entre áreas** no mesmo dia, dia/turno, **restrições de local** §6.2). Uma área conclui com **uma caixa qualquer** que a atenda.
+- **Preenchimento:** por `ordenamento`, objetivo **cobertura > lotação**, caixa **mais cheia com vaga**; restrições duras (**30h/semana**, **sem sobreposição de horário + 1h30 entre áreas** no mesmo dia, **restrições de local** §6.2 — sem limite de 1/dia nem bloqueio por turno). Uma área conclui com **uma caixa qualquer** que a atenda.
 - **Matrícula no meio do ciclo** → o aluno entra em **vaga sobrando de um grupo futuro** (nunca num já iniciado).
 - **Persistência:** o molde é **persistido** (fonte de verdade); a onda em andamento tem datas comprometidas, as futuras **re-derivam**. No protótipo (`versao_2`) é a coleção `grupos` com membros embutidos; no relacional são estas duas tabelas.
 
 ### Resumo do módulo Estágio
 
-Este módulo é o motor da v2 e materializa o trio **O QUE → ONDE → QUANDO**. `locais` é a oferta de cenários de um ano; `alocacoes` conecta cada aluno a um local (respeitando capacidade, conflitos de dia/turno e o intervalo mínimo de **2h entre áreas no mesmo dia**); `sessoes` explode essa conexão nas datas concretas. A inteligência do sistema está em `sessoes`: é dela que saem as horas cumpridas, a conclusão automática e o alerta de risco. E é o par de mecanismos **trava manual** (`alocacoes.travada`) + **congelamento do passado** (`sessoes.cumprida`) que garante o princípio da v2 — o remanejo é cirúrgico e nunca destrói o que já é válido.
+Este módulo é o motor da v2 e materializa o trio **O QUE → ONDE → QUANDO**. `locais` é a oferta de cenários de um ano; `alocacoes` conecta cada aluno a um local (respeitando capacidade, sobreposição de horário e o intervalo mínimo de **1h30 entre áreas no mesmo dia**); `sessoes` explode essa conexão nas datas concretas. A inteligência do sistema está em `sessoes`: é dela que saem as horas cumpridas, a conclusão automática e o alerta de risco. E é o par de mecanismos **trava manual** (`alocacoes.travada`) + **congelamento do passado** (`sessoes.cumprida`) que garante o princípio da v2 — o remanejo é cirúrgico e nunca destrói o que já é válido.
 
 ---
 
@@ -633,7 +642,7 @@ Estas duas tabelas são o "sistema nervoso" do painel do dia a dia. `fila_remane
 - `nome` — identificação.
 - `email` — **único**; usado no login.
 - `senha_hash` — a senha **armazenada com hash**, nunca em texto puro.
-- `perfil` — `administrador`, `coordenacao` ou `consulta`; define o nível de acesso.
+- `perfil` — `administrador`, `coordenacao`, `docente` ou `aluno`; define o nível de acesso. Só os dois primeiros escrevem; `docente` e `aluno` são leitura, e a diferença entre eles é o alcance (o aluno vê apenas a escala).
 - `ativo` — permite desativar acesso sem apagar o usuário.
 - `created_at` — auditoria.
 
@@ -643,7 +652,7 @@ Estas duas tabelas são o "sistema nervoso" do painel do dia a dia. `fila_remane
 **7. Regras de negócio:**
 - `email` é **único**.
 - **Senha sempre criptografada** (`senha_hash`) — nunca em texto puro.
-- Perfil padrão `consulta` (menor privilégio) no cadastro.
+- Perfil padrão `aluno` (menor privilégio) no cadastro.
 - **Soft delete via `ativo`**: desativar em vez de apagar.
 
 ### Resumo do módulo Autenticação
@@ -655,18 +664,20 @@ Estas duas tabelas são o "sistema nervoso" do painel do dia a dia. `fila_remane
 ## Mapa consolidado de relacionamentos
 
 ```
-                       areas (catálogo fixo, atravessa ciclos)
-                        ▲  ▲
-                        │  └────────────────┐
-ciclos ─┬─< locais ─────┘                   │
-        │      ▲  └─< indisponibilidades_local
-        │      │
-        │      └── docente_id → docentes ─< afastamentos
+        areas (catálogo fixo, atravessa ciclos ─ auto-ref: composta 1─N sub-áreas)
+          ▲  ▲  ▲
+          │  │  └──────────────────────────┐
+ciclos ─┬─│──│─< locais ────────────────────┤
+        │ │  │      ▲  ├─< indisponibilidades_local
+        │ │  │      │  └── preceptor_tipo/id → preceptores | docentes (polimórfica)
+        │ │  │      └── docente_id → docentes ─< afastamentos >─ preceptor_id
+        │ │  │
+        │ │  └── matriculas (aluno × área) ─┐
+        │ └─< alunos ──┬────────────────────┤ (matricula_id)
+        │              ├─< alocacoes ────────┘ ─< sessoes
+        │              └─< restricoes_aluno_local >── locais
         │
-        ├─< alunos ─< matriculas (aluno × área)  ─┐
-        │      │                                  │ (matricula_id)
-        │      └─< alocacoes (aluno × local) ─────┘ ─< sessoes
-        │
+        ├─< grupos ─< grupo_alunos >── alunos
         ├─< eventos
         ├─< fila_remanejo
         ├─< atividade
@@ -681,12 +692,17 @@ usuarios  (autenticação — isolada)
 |---|---|---|---|
 | `alunos` → `ciclos` | FK `ciclo_id` | N:1 | Aluno pertence a um ano |
 | `locais` → `ciclos` | FK `ciclo_id` | N:1 | Oferta muda por ano |
-| `locais` → `areas` | FK `area_id` | N:1 | Local pertence a uma área |
-| `locais` → `docentes` | FK `docente_id` | N:1 | Local tem um docente |
+| `locais` → `areas` | FK `area_id` | N:1 | Local pertence a uma área (leaf) |
+| `locais` → `docentes` | FK `docente_id` (**nullable**, AR-7) | N:1 | Local tem um docente responsável (pode nascer sem) |
+| `locais` → `preceptores`/`docentes` | FK **polimórfica** `preceptor_tipo`/`preceptor_id` | N:1 | Preceptor de campo: externo ou docente |
+| `areas` → `areas` | FK `area_mae_id` | N:1 | Sub-área aponta para a área-mãe composta |
 | `matriculas` → `alunos` / `areas` | FKs | N:N resolvido | Aluno cursa N áreas; área tem N alunos |
+| `restricoes_aluno_local` → `alunos` / `locais` | FKs (par único, CASCADE) | N:1 cada | Blocklist: locais que o aluno **não** pode frequentar |
 | `alocacoes` → `alunos` / `locais` / `matriculas` | FKs | N:1 cada | Aluno ocupa local por uma matrícula |
 | `sessoes` → `alocacoes` | FK `alocacao_id` | N:1 | Datas concretas de uma ocupação |
-| `afastamentos` → `docentes` **ou** `preceptores` / `ciclos` | FKs | N:1 | Ausências de um docente OU preceptor (XOR) |
+| `grupos` → `ciclos` / `locais` / `areas` | FKs (ciclo/local CASCADE) | N:1 cada | Ondas (caixas) por local |
+| `grupo_alunos` → `grupos` / `alunos` | FKs (par único, CASCADE) | N:1 cada | Membros de uma onda (`fixado` sobrevive à regeração) |
+| `afastamentos` → `docentes` **ou** `preceptores` / `ciclos` | FKs (XOR) | N:1 | Ausências de um docente OU preceptor (XOR) |
 | `indisponibilidades_local` → `locais` | FK `local_id` | N:1 | Períodos indisponíveis de um local |
 | `eventos` → `ciclos` | FK `ciclo_id` | N:1 | Eventos de um ano |
 | `fila_remanejo` / `atividade` → `ciclos` | FK `ciclo_id` | N:1 | Fila e feed por ciclo |

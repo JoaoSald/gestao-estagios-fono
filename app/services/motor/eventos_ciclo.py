@@ -51,14 +51,14 @@ def nova_matricula(db: Session, aluno_id: int, area_id: int) -> ResultadoAjuste:
             common.registrar_atividade(db, aluno.ciclo, f"{aluno.nome} encaixado em {cx.local.campo} (matrícula nova).")
             common.commit(db, "Não foi possível encaixar a matrícula.")
             return ResultadoAjuste(True, sugestao={"grupo_id": gid, "data_inicio": cx.data_inicio.isoformat()})
-    return ResultadoAjuste(False, ["sem caixa futura viável — fila / próximo ciclo"])
+    return ResultadoAjuste(False, ["sem grupo futuro viável — fila / próximo ciclo"])
 
 
 def novo_local(db: Session, local_id: int) -> dict:
     """Materializa as caixas do local novo e oferece as vagas à fila (§8.4). Raio: 1 local."""
     local = common.obter_ou_404(db, Local, local_id, "Local")
     if local.docente_id is None:
-        raise DomainError("Defina o docente do local antes de materializar suas caixas.")
+        raise DomainError("Defina o docente do local antes de materializar seus grupos.")
     ciclo = local.ciclo
     ctx = calendario.carregar_contexto(db, ciclo)
     hoje = date.today()
@@ -132,8 +132,17 @@ class ResumoImpacto:
     aguardando: list = field(default_factory=list)    # {aluno, area_id, motivo}
 
     def tem_mudanca(self) -> bool:
+        """Há algo A APLICAR? `aguardando` de propósito NÃO conta.
+
+        `aguardando` é o oposto de uma mudança: é o aluno que o reflow tentou sentar e
+        NÃO conseguiu ("sem grupo futuro viável"). Contá-lo deixava a pendência acesa
+        para sempre — aplicar o remanejo não muda nada, o aluno continua sem caixa, e no
+        render seguinte o modal pedia revisão de novo. Aluno na fila sem vaga é **alerta
+        informativo** (§9), não gatilho de remanejo: pela §7.1 o que destrava a fila é
+        infraestrutura nova (local/dia/área), e é ela que acende a pendência.
+        """
         return bool(any(i.tem() for i in self.locais) or self.novas_caixas
-                    or self.colocados or self.aguardando)
+                    or self.colocados)
 
 
 def _nome_aluno(db: Session, aluno_id: int) -> str:
@@ -304,7 +313,7 @@ def _colocar_aguardando(db: Session, ciclo, ctx, hoje: date, resumo: ResumoImpac
                 break
         if not colocado:
             resumo.aguardando.append({"aluno": _nome_aluno(db, aluno_id),
-                                      "area_id": m.area_id, "motivo": "sem caixa futura viável"})
+                                      "area_id": m.area_id, "motivo": "sem grupo futuro viável"})
 
 
 def _processar_pendencias(db: Session, ciclo, hoje: date | None = None) -> ResumoImpacto:

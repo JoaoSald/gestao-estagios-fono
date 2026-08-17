@@ -90,9 +90,25 @@ class SituacaoHistorico(str, enum.Enum):
 
 
 class PerfilUsuario(str, enum.Enum):
+    """Quem acessa o quê (FASE 6). A ordem é do mais para o menos privilegiado.
+
+    `coordenacao` faz tudo (é a comissão); `docente` e `aluno` são SOMENTE LEITURA —
+    a diferença entre os dois é o alcance: o docente também lê painel e histórico, o
+    aluno vê apenas a escala (`/ui/estagios`). Quem manda no que cada um alcança é
+    `app/core/navegacao.py` (menu) + as dependências de `routers/ui/deps.py` (rota).
+    """
+
     administrador = "administrador"
     coordenacao = "coordenacao"
-    consulta = "consulta"
+    docente = "docente"
+    aluno = "aluno"
+
+
+# Perfis que EDITAM. Todo o resto é leitura — inclusive perfil novo que apareça,
+# porque o gate pergunta "está nesta lista?" e não "não está na lista de leitura?".
+PERFIS_EDICAO: frozenset[PerfilUsuario] = frozenset(
+    {PerfilUsuario.administrador, PerfilUsuario.coordenacao}
+)
 
 
 def pg_enum(py_enum: type[enum.Enum], name: str) -> SAEnum:

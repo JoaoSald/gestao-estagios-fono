@@ -1,0 +1,49 @@
+{% import "_macros.html" as ui %}
+{# ---- Locais que não geraram grupo (capacidade perdida), agrupados por ÁREA e com a cor
+     do catálogo — a mesma pílula/cor usada nos grupos e no resumo de slots, para a leitura
+     ser "área → local" em qualquer tela. A explicação longa sai de cada item e vira uma
+     frase no rodapé; o cálculo (ocorrências − bloqueadas) fica no `title` do número.
+     Contexto: `perdidos` = [{nome, cor, itens: [LocalSemGrupo]}]. ---- #}
+<div style="margin:.5rem 0">
+  <div style="font-weight:600;margin-bottom:.4rem">
+    Locais que não geraram grupo <span class="dim" style="font-weight:400">(capacidade perdida)</span>
+  </div>
+
+  {% for g in perdidos %}
+  <div style="margin-bottom:.5rem">
+    <div style="margin-bottom:.25rem">{{ ui.area_pill(g.nome, g.cor) }}</div>
+    {% for p in g.itens %}
+    <div class="arow st-falha" style="--area:{{ g.cor or 'var(--border-2)' }}">
+      <div class="arow-top">
+        <b>{{ p.campo }}</b>{% if p.unidade %}<span class="dim">· {{ p.unidade }}</span>{% endif %}
+        <span class="arow-when">{{ p.dia }} · {{ p.turno }} · {{ p.hora_inicio.strftime('%H:%M') }}–{{ p.hora_fim.strftime('%H:%M') }}</span>
+        <span style="margin-left:auto;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+          {% if p.causa == 'sem_docente' %}
+            <span class="badge b-falha"><span class="dt"></span>sem docente</span>
+          {% elif p.causa == 'encontros_invalidos' %}
+            <span class="badge b-falha"><span class="dt"></span>nº de encontros inválido ({{ p.encontros }})</span>
+          {% else %}
+            <span class="badge b-neutral mono">{{ p.encontros }} enc.</span>
+            <span class="badge b-neutral mono"
+                  title="{{ p.ocorrencias }} ocorrência(s) de {{ p.dia }} no ciclo − {{ p.bloqueadas }} bloqueada(s) por feriado/afastamento/indisponibilidade">
+              {{ p.viaveis }} datas viáveis</span>
+            <span class="badge b-falha"><span class="dt"></span>faltam {{ p.faltam }}</span>
+            {% if p.sugerido > 0 %}
+            <span class="badge b-risco" title="Maior nº de encontros que ainda fecha 1 grupo neste slot. Reduz a CH para {{ (p.sugerido * p.horas_sessao)|round(1) }}h.">
+              cabe até {{ p.sugerido }}</span>
+            {% endif %}
+          {% endif %}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="hint" style="margin-top:.45rem">
+    O bloco final incompleto é descartado, então um slot com menos datas viáveis que
+    encontros não fecha grupo nenhum. Saídas: <b>reduzir o nº de encontros</b> (o
+    “cabe até” já é o máximo que fecha), oferecer <b>outro dia</b>, <b>estender o ciclo</b>
+    ou remover um evento bloqueante. Ajuste em <b>Áreas e Locais → Validador de locais</b>.
+  </div>
+</div>

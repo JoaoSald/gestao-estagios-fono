@@ -9,8 +9,14 @@
 BEGIN;
 
 -- 1. CICLO
-INSERT INTO ciclos (id, data_inicio, data_fim, status, escala_desatualizada, criado_em) VALUES
-  (1, '2026-03-02', '2026-12-11', 'em_andamento', false, '2026-02-14');
+-- Nasce `encerrado` (NÃO `em_andamento`): no deploy o estado inicial precisa ser "nenhum ciclo
+-- ativo" (get_ciclo_ativo só olha rascunho/em_andamento), então a comissão cai em /ui/bem-vindo
+-- e abre o ciclo do ano. Este ciclo existe para (a) pendurar os 37 locais do ESPELHO 2026 —
+-- locais.ciclo_id é NOT NULL — e (b) servir de fonte do clone de locais em ciclo.abrir()
+-- (`_clonar_locais` busca o ciclo encerrado mais recente, AR-7). `encerrado_em` preenchido
+-- para o desempate de `_ciclo_anterior` ser determinístico.
+INSERT INTO ciclos (id, data_inicio, data_fim, status, escala_desatualizada, criado_em, encerrado_em) VALUES
+  (1, '2026-03-02', '2026-12-11', 'encerrado', false, '2026-02-14', '2026-12-11');
 
 -- 2. AREAS (compostas: composta=true e SEM locais; sub-áreas: area_mae_id aponta p/ a mãe)
 INSERT INTO areas (id, nome, cor, carga_exigida, fase, pre_requisito, composta, area_mae_id) VALUES
@@ -94,8 +100,9 @@ VALUES
   (18, 1, 8, 'Santa Casa (HCSA)', 'SADT (SA)', 16, NULL, NULL, 'segunda', 'manha', '08:00', '12:00', 4, 4, 40, 10, false, true),
   (19, 1, 8, 'Santa Casa (HCSA)', 'SADT (SA)', 16, NULL, NULL, 'sexta', 'manha', '08:00', '12:00', 4, 4, 40, 10, false, true),
   (20, 1, 9, 'Santa Casa (HSCL)', 'Ambulatório ORL — TAN', 16, NULL, NULL, 'terca', 'tarde', '13:00', '16:00', 3, 2, 10, 4, false, true),
-  (21, 1, 10, 'SMS', 'AMB. Santa Marta (SM)', 3, 'externo', 6, 'segunda', 'integral', '08:00', '17:00', 8, 4, 60, 8, true, true),
-  (22, 1, 10, 'SMS', 'AMB. Santa Marta (SM)', 3, 'externo', 6, 'terca', 'integral', '08:00', '17:00', 8, 4, 60, 8, false, true),
+  -- locais 21-22: horário real 08:30–14:30 (6h/encontro) -> 60h em 10 encontros.
+  (21, 1, 10, 'SMS', 'AMB. Santa Marta (SM)', 3, 'externo', 6, 'segunda', 'integral', '08:30', '14:30', 6, 4, 60, 10, true, true),
+  (22, 1, 10, 'SMS', 'AMB. Santa Marta (SM)', 3, 'externo', 6, 'terca', 'integral', '08:30', '14:30', 6, 4, 60, 10, false, true),
   (23, 1, 5, 'Santa Casa (HSCL)', 'Ambulatório - C', 17, NULL, NULL, 'sexta', 'tarde', '13:00', '17:00', 4, 4, 80, 20, false, true),
   (24, 1, 5, 'UFCSPA', 'Fisioterapia', 8, NULL, NULL, 'quarta', 'manha', '08:00', '12:00', 4, 4, 80, 20, false, true),
   (25, 1, 6, 'Santa Casa (HSCL)', 'Ambulatório - ORL', 9, NULL, NULL, 'sexta', 'tarde', '13:30', '17:30', 4, 4, 80, 20, false, true),

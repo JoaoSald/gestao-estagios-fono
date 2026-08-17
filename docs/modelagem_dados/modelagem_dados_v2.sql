@@ -3,23 +3,22 @@
 -- DDL PostgreSQL — VERSÃO 2  (companion do modelagem_dados_v2.dbml)
 -- Gerado como registro para a implementação em FastAPI.
 --
--- ⚠️ SNAPSHOT HISTÓRICO — NÃO É A FONTE DE VERDADE DO SCHEMA.
---   O schema real é dono do Alembic (app/models/ + alembic/versions/).
---   Este arquivo é PRÉ-reestruturação e está defasado: aqui status_matricula é
---   só em_andamento/concluida (o real tem também interrompida e incompleta),
---   falta grupo_alunos.fixado, a fase_area é a antiga (5/6_7 vs 7/9_10) e a nota
---   de intervalo (1h30) foi atualizada para 2h entre áreas no mesmo dia.
---   Schema atual = migrations Alembic (última: f3b8c1d4e6a2) + docs/REGRAS_MOTOR_ESCALA.md.
+-- FONTE DE VERDADE: o schema real é dono do Alembic (app/models/ +
+--   alembic/versions/). Este arquivo é o companion DDL, mantido em sincronia
+--   com os models. Última migration refletida: 9fd4120b1555 (AR-7 docente
+--   nullable + AR-8 aluno.prioridade). Regras de motor/tela em
+--   docs/REGRAS_MOTOR_ESCALA.md.
 --
 -- REGRAS DE NEGÓCIO (v2):
---   1. Fase: alunos do 5º semestre = MINI-CICLO (só Audiologia I);
---      6º/7º cursam as demais áreas. Convivem no mesmo ciclo.
---   2. Audiologia I é PRÉ-REQUISITO BLOQUEANTE das áreas de 6/7
---      (areas.pre_requisito = true). Aplicado no motor de alocação.
+--   1. Fase: alunos do 7º semestre = MINI-CICLO (só Audiologia I, fase '7');
+--      9º/10º cursam as demais áreas (fase '9_10'). Convivem no mesmo ciclo.
+--   2. Audiologia I é PRÉ-REQUISITO das áreas de 9/10 (areas.pre_requisito =
+--      true) — responsabilidade compartilhada, conferida pela coordenação.
 --   3. Carry-forward: matrícula pode nascer com status='concluida'
---      (área cursada antes — ex.: Audiologia I dos alunos de 6/7).
---      O motor só aloca as 'em_andamento'.
---   4. As 3 áreas Hospitalares (Ped+Adulto+Neo) somam 160h.
+--      (área cursada antes — ex.: Audiologia I dos alunos de 9/10) ou fechar o
+--      período com status='incompleta'. O motor só aloca as 'em_andamento'.
+--   4. Áreas COMPOSTAS (Audiologia II, Hospitalar) são containers: a CH da mãe
+--      = soma das sub-áreas; matrícula e conclusão são POR SUB-ÁREA (leaf).
 --   5. COBERTURA DO LOCAL: cada local tem um docente e, opcional, um
 --      PRECEPTOR de campo (externo OU um docente — ref polimórfica).
 --      O encontro só cai quando docente E preceptor estão afastados no
@@ -32,7 +31,7 @@ CREATE TYPE turno_tipo        AS ENUM ('manha', 'tarde', 'integral', 'noite');
 CREATE TYPE dia_semana_tipo   AS ENUM ('segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo');
 CREATE TYPE fase_area         AS ENUM ('7', '9_10');
 CREATE TYPE status_ciclo      AS ENUM ('rascunho', 'em_andamento', 'encerrado');
-CREATE TYPE status_matricula  AS ENUM ('em_andamento', 'concluida');
+CREATE TYPE status_matricula  AS ENUM ('em_andamento', 'concluida', 'interrompida', 'incompleta');
 CREATE TYPE status_alocacao   AS ENUM ('ativa', 'concluida', 'cancelada');
 CREATE TYPE status_sessao     AS ENUM ('prevista', 'cumprida', 'remanejada', 'cancelada');
 CREATE TYPE status_grupo      AS ENUM ('em_andamento', 'previsto');
@@ -41,7 +40,7 @@ CREATE TYPE tipo_evento       AS ENUM ('academico', 'feriado', 'reuniao', 'reces
 CREATE TYPE origem_evento     AS ENUM ('manual', 'google', 'api_feriados');
 CREATE TYPE tipo_atividade    AS ENUM ('ciclo', 'edicao', 'remanejo', 'sync');
 CREATE TYPE situacao_historico AS ENUM ('ciclo_completo', 'pendente');
-CREATE TYPE perfil_usuario    AS ENUM ('administrador', 'coordenacao', 'consulta');
+CREATE TYPE perfil_usuario    AS ENUM ('administrador', 'coordenacao', 'docente', 'aluno');
 
 -- ============================================================
 -- CICLO  (agregador + máquina de estados)
@@ -123,7 +122,7 @@ CREATE TABLE alunos (
   CONSTRAINT uq_aluno_ciclo_matricula UNIQUE (ciclo_id, matricula)
 );
 CREATE INDEX idx_alunos_ordenamento ON alunos (ordenamento);
-COMMENT ON COLUMN alunos.semestre IS '<=5 => fase 5 (mini-ciclo Audiologia I); >=6 => fase 6/7.';
+COMMENT ON COLUMN alunos.semestre IS '7 => fase 7 (mini-ciclo Audiologia I); 9/10 => fase 9_10 (demais).';
 COMMENT ON COLUMN alunos.ordenamento IS 'Ordem de alocacao — menor = maior prioridade. DERIVADA (AR-8): por fase, alunos com prioridade=true primeiro, depois por matricula. Nao e mais ordenacao manual.';
 COMMENT ON COLUMN alunos.prioridade IS 'AR-8: marcado no bootstrap p/ POSICIONAR o aluno a mao na Montagem dos grupos. O motor honra a colocacao (pin) e preenche o resto (prioritarios nao-colocados -> depois por matricula).';
 
@@ -135,9 +134,11 @@ CREATE TABLE matriculas (
   status                   status_matricula  NOT NULL DEFAULT 'em_andamento',
   data_conclusao_prevista  DATE,
   data_conclusao           DATE,
+  motivo_interrupcao       VARCHAR,   -- interrupção do estágio (desmatrícula extraordinária) — §6.1
+  data_interrupcao         DATE,      -- data da interrupção (status=interrompida)
   CONSTRAINT uq_matricula_aluno_area UNIQUE (aluno_id, area_id)
 );
-COMMENT ON TABLE matriculas IS 'O QUE o aluno cursa. CARRY-FORWARD: pode nascer com status=concluida (área cursada antes). PRÉ-REQUISITO: o motor não aloca área de 6/7 sem a área pre_requisito do aluno concluída.';
+COMMENT ON TABLE matriculas IS 'O QUE o aluno cursa (por sub-área quando a área é composta). CARRY-FORWARD: pode nascer com status=concluida (área cursada antes) ou fechar o período com incompleta. PRÉ-REQUISITO: Audiologia I é responsabilidade compartilhada das áreas de 9/10.';
 
 -- ============================================================
 -- LOCAIS DE ESTÁGIO
@@ -228,8 +229,10 @@ CREATE INDEX idx_sessao_alocacao_data ON sessoes (alocacao_id, data);
 COMMENT ON TABLE sessoes IS 'A menor unidade da escala = o ENCONTRO. O motor gera exatamente locais.numero_encontros sessões. Contador derivado: total = locais.numero_encontros; feitos = cumpridas + alocacoes.ajuste_encontros (limitado a [0,total]).';
 
 -- ============================================================
--- GRUPOS (ondas por local): grupo atual (onda 1) + previstos (cascata da fila).
--- Materializados; regerados a cada geração/remanejo. PROJEÇÃO até o motor confirmar.
+-- GRUPOS (ondas por local): grupo atual (onda 1) + previstos (cascata).
+-- GRADE-PRIMEIRO: o molde de TODOS os grupos do ciclo é materializado no
+-- bootstrap (datas = infraestrutura) e é a FONTE DE VERDADE; a onda em
+-- andamento tem datas comprometidas, as previstas re-derivam.
 -- ============================================================
 CREATE TABLE grupos (
   id           SERIAL PRIMARY KEY,
@@ -241,16 +244,18 @@ CREATE TABLE grupos (
   data_inicio  DATE          NOT NULL,
   data_fim     DATE          NOT NULL
 );
-COMMENT ON TABLE grupos IS 'Uma onda de alunos ocupando um local numa janela. Capacidade do local = tamanho do grupo. onda 1 = atual; 2,3… = previstos (cada um começa quando a onda anterior do local conclui).';
+COMMENT ON TABLE grupos IS 'Uma onda de alunos ocupando um local numa janela ("caixa"). Capacidade do local = tamanho do grupo. GRADE-PRIMEIRO: molde de todos os grupos materializado no bootstrap (fonte de verdade). onda 1 = atual; 2,3… = previstos (cada um começa quando a onda anterior do local conclui; com passagem_grupo, no último dia da anterior).';
 
 CREATE TABLE grupo_alunos (
   id        SERIAL PRIMARY KEY,
   grupo_id  INT      NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
   aluno_id  INT      NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
   aviso     VARCHAR,
+  fixado    BOOLEAN  NOT NULL DEFAULT false,
   CONSTRAINT uq_grupo_aluno UNIQUE (grupo_id, aluno_id)
 );
 COMMENT ON COLUMN grupo_alunos.aviso IS 'Dependência/conflito na projeção (ex.: "entra ao concluir Voz (previsto 15/09)"). Nulo se entra sem conflito.';
+COMMENT ON COLUMN grupo_alunos.fixado IS 'Remanejo manual da coordenação: quando true, o motor NÃO remove nem realoca este membro numa regeração (§9.1 — migration f3b8c1d4e6a2).';
 
 -- ============================================================
 -- CALENDÁRIO INSTITUCIONAL
@@ -330,7 +335,10 @@ CREATE TABLE usuarios (
   nome        VARCHAR          NOT NULL,
   email       VARCHAR          NOT NULL UNIQUE,
   senha_hash  VARCHAR          NOT NULL,
-  perfil      perfil_usuario   NOT NULL DEFAULT 'consulta',
+  perfil      perfil_usuario   NOT NULL DEFAULT 'aluno',
+  -- Identidade do aluno ENTRE ciclos (alunos.id é por ciclo; a matrícula sobrevive).
+  matricula   VARCHAR          UNIQUE,
   ativo       BOOLEAN          NOT NULL DEFAULT true,
+  ultimo_acesso TIMESTAMP,
   created_at  TIMESTAMP
 );

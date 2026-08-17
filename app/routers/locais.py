@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.schemas.local import (
     IndisponibilidadeCreate, IndisponibilidadeOut,
     LocalConfigCampo, LocalCreate, LocalOut, LocalUpdate,
@@ -12,7 +13,8 @@ from app.schemas.local import (
 from app.services import indisponibilidade as indisp_service
 from app.services import local as service
 
-router = APIRouter(prefix="/locais", tags=["locais"])
+router = APIRouter(prefix="/locais", tags=["locais"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("", response_model=list[LocalOut])

@@ -2,59 +2,84 @@
 
 Convenção: TUDO da UI mora sob `/ui` (páginas e parciais), deixando a raiz para a API
 JSON (FASES 3/4). Exceção: login/logout/home ficam na raiz por conveniência.
+
+Tudo neste módulo é da COMISSÃO (cadastros, painel, histórico, remanejar). A superfície
+que aluno e docente alcançam está em `consulta.py` — ver o cabeçalho de lá.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import DomainError
+from app.core.rotulos import rotulo
+from app.core.seguranca import Sessao
 from app.core.templates import templates
 from app.routers.ui.deps import (
-    COOKIE_SESSAO, destino_por_estado, exigir_operacao, exigir_sessao, render,
+    destino_por_estado, exigir_coordenacao, exigir_operacao, exigir_sessao,
+    gravar_sessao, limpar_sessao, render, sessao_opcional,
 )
+from app.services import usuario as usuario_service
 
 # Auth/home na raiz (público).
 auth_router = APIRouter(tags=["ui-auth"])
-# Páginas internas de OPERAÇÃO sob /ui (exigem sessão + ciclo em andamento).
+# Páginas internas de OPERAÇÃO sob /ui (exigem coordenação + ciclo em andamento).
 router = APIRouter(prefix="/ui", tags=["ui"],
-                   dependencies=[Depends(exigir_sessao), Depends(exigir_operacao)])
+                   dependencies=[Depends(exigir_coordenacao), Depends(exigir_operacao)])
 
 
-# ============================ Login (stub — FASE 6 substitui) ============================
+# ============================ Login ============================
 @auth_router.get("/login")
-def login_form(request: Request):
-    if request.cookies.get(COOKIE_SESSAO) == "ok":
+def login_form(request: Request, db: Session = Depends(get_db)):
+    if sessao_opcional(request) is not None:
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(request, "login.html", {"titulo": "Entrar · Gestão de Estágios"})
 
 
 @auth_router.post("/login")
-def login_submit():
-    resp = RedirectResponse("/", status_code=303)  # "/" roteia pelo estado do ciclo
-    resp.set_cookie(COOKIE_SESSAO, "ok", httponly=True, samesite="lax", max_age=60 * 60 * 12)
+def login_submit(request: Request, email: str = Form(...), senha: str = Form(...),
+                 manter: str | None = Form(None), db: Session = Depends(get_db)):
+    """Login por senha — hoje o único caminho; na FASE B ele fica como acesso de exceção
+    da coordenação e o normal passa a ser o SSO institucional.
+
+    Falha volta para a MESMA tela com o erro (não redireciona): redirecionar perderia a
+    mensagem, e a comissão não saberia se errou a senha ou se o sistema caiu.
+    """
+    try:
+        sessao = usuario_service.autenticar(db, email, senha)
+    except DomainError as exc:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"titulo": "Entrar · Gestão de Estágios", "erro": exc.mensagem, "email": email},
+            status_code=exc.status_code,
+        )
+    resp = RedirectResponse("/", status_code=303)  # "/" roteia pelo perfil + estado do ciclo
+    # "Manter conectado" desmarcado → cookie de sessão curto (fecha o expediente, sai).
+    gravar_sessao(resp, sessao, horas=None if manter else 2)
     return resp
 
 
 @auth_router.get("/logout")
 def logout():
     resp = RedirectResponse("/login", status_code=303)
-    resp.delete_cookie(COOKIE_SESSAO)
+    limpar_sessao(resp)
     return resp
 
 
-@auth_router.get("/", dependencies=[Depends(exigir_sessao)])
-def home(db: Session = Depends(get_db)):
-    return RedirectResponse(destino_por_estado(db), status_code=303)
+@auth_router.get("/")
+def home(sessao: Sessao = Depends(exigir_sessao), db: Session = Depends(get_db)):
+    """Porta única: cada perfil cai na sua tela (ver `destino_por_estado`).
+
+    O gate é DEPENDÊNCIA, não checagem no corpo: é assim que a auditoria de rotas
+    (`tests/test_autorizacao.py`) consegue ver que esta rota exige sessão.
+    """
+    return RedirectResponse(destino_por_estado(db, sessao), status_code=303)
 
 
-# ============================ Painel ============================
-@router.get("/painel")
-def painel(request: Request, db: Session = Depends(get_db)):
-    from app.routers.ui.painel_dados import montar_painel
-    dados = montar_painel(db)
-    return render(request, db, "painel.html", "painel", **dados)
+# Painel e Histórico são operação em LEITURA (comissão + docente) → `consulta.py`.
+# `_ctx_historico` fica aqui, onde nasceu, e é importado por lá.
 
 
 # ============================ Páginas de cadastro ============================
@@ -96,18 +121,8 @@ def pagina_aluno(aluno_id: int, request: Request, db: Session = Depends(get_db))
     return render(request, db, "aluno.html", "alunos", **dados)
 
 
-@router.get("/alunos/{aluno_id:int}/encontros")
-def aluno_encontros(aluno_id: int, request: Request, db: Session = Depends(get_db)):
-    from app.core.templates import templates
-    from app.routers.ui.aluno_dados import montar_encontros
-    return templates.TemplateResponse(request, "partials/encontros_modal.html", montar_encontros(db, aluno_id, None))
-
-
-@router.get("/alunos/{aluno_id:int}/encontros-cal")
-def aluno_encontros_cal(aluno_id: int, request: Request, mes: str | None = None, db: Session = Depends(get_db)):
-    from app.core.templates import templates
-    from app.routers.ui.aluno_dados import montar_encontros
-    return templates.TemplateResponse(request, "partials/_cal.html", {"cal": montar_encontros(db, aluno_id, mes)["cal"]})
+# `/ui/alunos/{id}/encontros` e `/encontros-cal` moraram aqui até a FASE 6: são o modal de
+# calendário da aba "Por aluno", então acompanharam a escala para `consulta.py` (leitura).
 
 
 @router.get("/areas")
@@ -139,7 +154,6 @@ EV_COR = {"feriado": "#f43f5e", "academico": "#0ea5e9", "reuniao": "#8b5cf6", "r
 _MESES_PT = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 _DOW_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
-_ORIGEM_LABEL = {"manual": "Manual", "google": "Google Calendar", "api_feriados": "Feriado"}
 
 
 def _eventos_por_ano_mes(db) -> list[dict]:
@@ -160,13 +174,13 @@ def _eventos_por_ano_mes(db) -> list[dict]:
             for e in anos[ano][mes]:
                 multi = e.data_fim and e.data_fim != e.data_inicio
                 itens.append({
-                    "id": e.id, "nome": e.nome, "tipo": e.tipo.value,
+                    "id": e.id, "nome": e.nome, "tipo": rotulo(e.tipo),
                     "cor": EV_COR.get(e.tipo.value, "#64748b"),
                     "dia": e.data_inicio.day, "dow": _DOW_PT[e.data_inicio.weekday()],
                     "periodo": (f"{e.data_inicio.strftime('%d/%m')} – {e.data_fim.strftime('%d/%m')}"
                                 if multi else e.data_inicio.strftime("%d/%m")),
                     "multi": bool(multi), "bloqueia": e.bloqueia_estagio,
-                    "origem": _ORIGEM_LABEL.get(e.origem.value, e.origem.value),
+                    "origem": rotulo(e.origem),
                 })
             total_ano += len(itens)
             meses.append({"mes": mes, "mes_nome": _MESES_PT[mes], "n": len(itens), "eventos": itens})
@@ -201,7 +215,7 @@ def _ctx_eventos(db: Session, vista: str, mes: str | None) -> dict:
             for e in eventos:
                 tipos.setdefault(e.tipo.value, 0)
                 tipos[e.tipo.value] += 1
-            legenda = [{"label": t, "cor": EV_COR.get(t, "#64748b"), "n": n} for t, n in tipos.items()]
+            legenda = [{"label": rotulo(t), "cor": EV_COR.get(t, "#64748b"), "n": n} for t, n in tipos.items()]
             ctx["cal"] = cal.montar(mes_ref, chips, host_id="ev-cal",
                                     nav_url="/ui/eventos/conteudo?vista=calendario",
                                     min_mes=min_mes, max_mes=max_mes, hoje=date.today(), legenda=legenda)
@@ -232,14 +246,7 @@ def eventos_conteudo(request: Request, vista: str = "lista", mes: str | None = N
     return templates.TemplateResponse(request, tpl, ctx)
 
 
-# ============================ Estágios (só visualização — 3 abas) ============================
-@router.get("/estagios")
-def pagina_estagios(request: Request, vista: str = "aluno", local: str | None = None,
-                    area: str | None = None, mes: str | None = None, fase: str = "todos",
-                    db: Session = Depends(get_db)):
-    from app.routers.ui.escala import _ctx_conteudo
-    dados = _ctx_conteudo(db, vista, local, area, mes, fase)
-    return render(request, db, "estagios.html", "estagios", **dados)
+# Estágios (as 3 abas) é a superfície de LEITURA → `consulta.py`.
 
 
 # ============================ Histórico ============================
@@ -269,19 +276,6 @@ def _ctx_historico(db: Session, ano: int | None):
             "encerramento": h.encerramento,
         } for h in egr]
     return ctx
-
-
-@router.get("/historico")
-def pagina_historico(request: Request, ano: int | None = None, db: Session = Depends(get_db)):
-    return render(request, db, "historico.html", "historico", **_ctx_historico(db, ano))
-
-
-@router.get("/historico/{hist_id}")
-def historico_detalhe(hist_id: int, request: Request, db: Session = Depends(get_db)):
-    from app.core.templates import templates
-    from app.models.operacao import Historico
-    h = db.get(Historico, hist_id)
-    return templates.TemplateResponse(request, "partials/historico_detalhe.html", {"h": h})
 
 
 # ============================ Remanejar ============================

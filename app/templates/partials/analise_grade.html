@@ -1,0 +1,54 @@
+{% import "_macros.html" as ui %}
+{# ---- A semana ofertada, desenhada por hora. Um bloco colorido por estágio; blocos
+     empilhados na mesma coluna caem no mesmo horário, então o aluno leva um só.
+     Contexto: `timeline` = {dias, horas, ini, fim}. ---- #}
+{% if timeline.dias %}
+<details class="diag-sec" {% if abrir_analise %}open{% endif %}>
+  <summary style="cursor:pointer;list-style:none">
+    {% set n_blocos = timeline.dias|map(attribute='blocos')|map('length')|sum %}
+    <span class="diag-title">{{ ui.icon('grid') }} Quando cada estágio acontece
+      <span class="dim" style="font-weight:400;font-size:.78rem">
+        · {{ n_blocos }} estágio(s) em {{ timeline.dias|length }} dia(s)
+        · {{ '%02d'|format(timeline.ini) }}h–{{ '%02d'|format(timeline.fim) }}h</span>
+    </span>
+  </summary>
+
+  <div class="diag-sub" style="margin-top:.7rem">
+    Blocos empilhados na mesma coluna são os que caem no mesmo horário: o aluno pega só um
+    deles. Passe o mouse para ver área, campo, horário e vagas.
+  </div>
+
+  <div class="tl" style="--tl-passo:{{ (100 / (timeline.horas|length - 1))|round(3) if timeline.horas|length > 1 else 100 }}%">
+    <div></div>
+    <div class="tl-eixo">
+      {% for h in timeline.horas %}
+      <span style="left:{{ (loop.index0 / (timeline.horas|length - 1) * 100)|round(3) if timeline.horas|length > 1 else 0 }}%">{{ '%02d'|format(h) }}h</span>
+      {% endfor %}
+    </div>
+    {% for d in timeline.dias %}
+      <div class="tl-dia">{{ d.dia }}</div>
+      <div class="tl-faixa">
+        {% for pista in range(d.pistas) %}
+        <div class="tl-pista">
+          {% for b in d.blocos if b.pista == pista %}
+          {% set cor = b.slot.area_cor or '#64748b' %}
+          <div class="tl-bloco" style="left:{{ b.esquerda }}%;width:{{ b.largura }}%;background:{{ cor }}"
+               title="{{ b.slot.area_nome }} — {{ b.slot.local.campo }} · {{ b.faixa }} · {{ b.slot.capacidade_efetiva }} vaga(s) no ciclo">
+            {{ b.slot.local.campo }}</div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  {# legenda por área — a mesma cor dos grupos e do resumo de slots #}
+  {% set areas = {} %}
+  {% for d in timeline.dias %}{% for b in d.blocos %}
+    {% if areas.update({b.slot.area_nome: b.slot.area_cor}) %}{% endif %}
+  {% endfor %}{% endfor %}
+  <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.6rem">
+    {% for nome, cor in areas|dictsort %}{{ ui.area_pill(nome, cor) }}{% endfor %}
+  </div>
+</details>
+{% endif %}

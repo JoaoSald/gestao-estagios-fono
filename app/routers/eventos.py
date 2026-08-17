@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.schemas.evento import EventoCreate, EventoOut, EventoUpdate
 from app.services import evento as service
 
-router = APIRouter(prefix="/eventos", tags=["eventos"])
+router = APIRouter(prefix="/eventos", tags=["eventos"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("", response_model=list[EventoOut])

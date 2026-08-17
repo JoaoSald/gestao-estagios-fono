@@ -18,18 +18,18 @@
   <div class="card-body campo-info">
     <div class="li">{{ ui.icon('teacher') }}<div><span class="k">Docente:</span> {{ campo.docente }}</div></div>
     <div class="li">{{ ui.icon('user') }}<div><span class="k">Preceptor:</span> {{ campo.preceptor or '— (só o docente)' }}</div></div>
-    <div class="li">{{ ui.icon('clock') }}<div><span class="k">Horário:</span> {{ campo.local.dia_semana.value }} · {{ campo.local.turno.value }} · {{ campo.local.hora_inicio.strftime('%H:%M') }}–{{ campo.local.hora_fim.strftime('%H:%M') }}</div></div>
+    <div class="li">{{ ui.icon('clock') }}<div><span class="k">Horário:</span> {{ campo.local.dia_semana.value|rot }} · {{ campo.local.turno.value|rot }} · {{ campo.local.hora_inicio.strftime('%H:%M') }}–{{ campo.local.hora_fim.strftime('%H:%M') }}</div></div>
     <div class="li">{{ ui.icon('calendar') }}<div><span class="k">Período:</span> {{ campo.ini_geral.strftime('%d/%m/%Y') if campo.ini_geral else '—' }} → {{ campo.fim_geral.strftime('%d/%m/%Y') if campo.fim_geral else '—' }}</div></div>
+    {% if campo.local.passagem_grupo %}<div class="li">{{ ui.icon('shuffle') }}<div><span class="k">Passagem de grupo:</span> o último encontro de um grupo é o 1º do próximo (1 dia de sobreposição, marcado com <span style="color:#f43f5e;font-weight:700">⇄</span> no calendário)</div></div>{% endif %}
     <div class="li">{{ ui.icon('layers') }}<div><span class="k">Vagas:</span> <b>{{ campo.ocupacao }}/{{ campo.local.capacidade }}</b> {% if campo.vagas_livres > 0 %}<span class="dim">({{ campo.vagas_livres }} livre(s))</span>{% else %}<span class="dim">(lotado)</span>{% endif %}</div></div>
   </div>
   <div class="card-head"><div class="flex between" style="width:100%;align-items:center;gap:.5rem">
     <div class="dim" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Alunos no cenário</div>
+    {# `pode_editar` vem do processador de contexto (core/templates.py) e vale em toda
+       parcial. Perfil de leitura vê a escala inteira, sem as ações de ajuste. #}
     <div class="row-actions">
-      {% if campo.vagas_livres > 0 %}<button class="btn btn-secondary btn-sm"
+      {% if pode_editar and campo.vagas_livres > 0 %}<button class="btn btn-secondary btn-sm"
         hx-get="/ui/estagios/adicionar-modal?local={{ campo.local_sel }}" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('plus') }} Adicionar</button>{% endif %}
-      {% if campo.roster %}<button class="btn btn-secondary btn-sm"
-        hx-post="/ui/estagios/concluir-grupo" hx-vals='{"local_id": {{ campo.local_sel }}}' hx-target="#estagios-conteudo" hx-swap="innerHTML"
-        hx-confirm="Concluir todos os alunos ativos de {{ campo.local.campo }}? As áreas viram concluídas e as vagas são liberadas.">{{ ui.icon('check') }} Concluir grupo</button>{% endif %}
     </div>
   </div></div>
   <div class="card-body" style="padding-top:.4rem">
@@ -38,7 +38,7 @@
         <div style="min-width:0;flex:1"><div class="rn">{{ r.aluno_nome }}{% if r.travada %} {{ ui.icon('lock') }}{% endif %}</div>
           <div class="rm">{{ r.cumpr }}/{{ r.total }} sessões · {{ r.pct }}% · até {{ r.fim.strftime('%d/%m/%Y') }}</div></div>
         {% if r.risco %}<span class="badge b-risco"><span class="dt"></span>risco</span>{% endif %}
-        {% if r.grupo_id %}
+        {% if pode_editar and r.grupo_id %}
         <div class="row-actions">
           <button class="icon-btn btn-sm" title="Mover para outro local da área"
             hx-get="/ui/estagios/mover-campo-modal?aloc={{ r.aloc_id }}" hx-target="#modal-root" hx-swap="innerHTML">{{ ui.icon('shuffle') }}</button>

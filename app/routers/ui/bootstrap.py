@@ -13,20 +13,23 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import passos
 from app.core.database import get_db
 from app.core.errors import DomainError
 from app.core.templates import templates
 from app.models.ciclo import Ciclo
 from app.models.enums import StatusCiclo
-from app.routers.ui.deps import destino_por_estado, exigir_sessao
+from app.routers.ui.deps import destino_por_estado, exigir_coordenacao
 from app.schemas.ciclo import CicloCreate
+from app.schemas.local import LocalUpdate
 from app.services import (
-    area as area_service, ciclo as ciclo_service, docente as docente_service,
+    analise_grade, area as area_service, ciclo as ciclo_service, docente as docente_service,
     local as local_service, preceptor as preceptor_service,
 )
+from app.services import common
 from app.services.common import get_ciclo_ativo
 
-router = APIRouter(prefix="/ui", tags=["ui-ciclo"], dependencies=[Depends(exigir_sessao)])
+router = APIRouter(prefix="/ui", tags=["ui-ciclo"], dependencies=[Depends(exigir_coordenacao)])
 
 
 # ============================ Welcome (abrir ciclo) ============================
@@ -93,8 +96,13 @@ def historico_anteriores_detalhe(hist_id: int, request: Request, db: Session = D
 
 
 # ============================ Wizard de bootstrap ============================
+# Passos com tabela CRUD genérica — indexados pela CHAVE do passo (`core/passos.py`),
+# não pelo número, para a ordem do wizard poder mudar em um só lugar.
 _TABELAS_POR_PASSO = {
-    2: ["docentes"], 4: ["preceptores"], 6: ["afastamentos"], 8: ["eventos"],
+    "docentes": ["docentes"],
+    "preceptores": ["preceptores"],
+    "eventos": ["eventos"],
+    "afastamentos": ["afastamentos"],
 }
 
 
@@ -110,47 +118,78 @@ def ctx_areas(db: Session) -> dict:
     return {"areas_simples": simples, "areas_compostas": compostas}
 
 
-def ctx_locais(db: Session) -> dict:
-    """Contexto da etapa 3b (tabela de locais + resumo de slots). Usado no wizard e
-    no re-render reativo (#bs-locais) após criar/editar/desativar local."""
-    from app.routers.ui.cadastros import META, dados_tabela
-    # resumo de slots paralelos por sub-área (leaf) — espelha bootstrap.js passo 3b
-    resumo: dict[int, dict] = {}
+def ctx_locais(db: Session, ciclo: Ciclo | None = None) -> dict:
+    """Contexto da etapa 6b (tabela de locais + resumo de slots + validador + análise).
+
+    Usado no wizard e no re-render reativo (#bs-locais) após criar/editar/desativar local,
+    então validador e análise da grade se atualizam junto com a tabela, de graça.
+    """
+    from app.routers.ui.cadastros import META, dados_tabela, label_area
+    # Resumo agrupado por (ÁREA, CAMPO) — NÃO por área.
+    # Dois campos da mesma área podem ter nº de encontros e capacidade diferentes
+    # (Voz — Coral com 20 encontros vs. Voz — Ambulatório ORL com 16): somar tudo numa
+    # linha "Voz" mostraria a capacidade de um campo com os encontros do outro. Os dias
+    # do MESMO campo continuam somados — cada dia é um slot que roda em paralelo.
+    areas = {a.id: a for a in area_service.listar(db)}
+    resumo: dict[tuple, dict] = {}
     for l in local_service.listar(db):
         if not l.ativo:
             continue
-        ar = area_service.obter(db, l.area_id)
-        r = resumo.setdefault(l.area_id, {"nome": ar.nome, "cor": ar.cor, "n": 0, "cap": 0, "enc": l.numero_encontros})
+        ar = areas.get(l.area_id)
+        cor = None
+        if ar is not None:  # sub-área sem cor própria herda a cor da mãe (padrão da tabela)
+            cor = ar.cor or (areas[ar.area_mae_id].cor if ar.area_mae_id in areas else None)
+        r = resumo.setdefault((l.area_id, l.unidade or "", l.campo), {
+            "nome": label_area(ar, areas) if ar else "?", "cor": cor,
+            "campo": l.campo, "unidade": l.unidade, "n": 0, "cap": 0,
+            "enc_min": l.numero_encontros, "enc_max": l.numero_encontros,
+        })
         r["n"] += 1
         r["cap"] += l.capacidade
+        r["enc_min"] = min(r["enc_min"], l.numero_encontros)
+        r["enc_max"] = max(r["enc_max"], l.numero_encontros)
+    for r in resumo.values():
+        # Dias do mesmo campo com nº de encontros diferente: mostra a faixa e avisa,
+        # porque cada dia fecha grupos de tamanho diferente.
+        r["enc"] = (str(r["enc_min"]) if r["enc_min"] == r["enc_max"]
+                    else f"{r['enc_min']}–{r['enc_max']}")
+        r["enc_varia"] = r["enc_min"] != r["enc_max"]
+    ordenado = sorted(resumo.values(), key=lambda r: (r["nome"], r["campo"]))
     d = dados_tabela(db, "locais")
     _t, _s, _novo, _del = META["locais"]
-    return {"locais_resumo": list(resumo.values()), "locais_tabela": {**d, "novo_label": _novo}}
+    ctx = {"locais_resumo": ordenado, "locais_tabela": {**d, "novo_label": _novo}}
+    if ciclo is None:
+        ciclo = get_ciclo_ativo(db)
+    if ciclo is not None:
+        # Validador (só Fase 1 do motor, nada persistido) + análise da grade.
+        ctx.update(analise_grade.analise_oferta(db, ciclo))
+    return ctx
 
 
 def _ctx_passo(db: Session, ciclo: Ciclo, passo: int, erro: str | None = None) -> dict:
     from app.routers.ui.cadastros import META, dados_alunos, dados_tabela
-    ctx: dict = {"passo": passo, "ano": ciclo.data_inicio.year, "ciclo": ciclo,
-                 "erro": erro, "tabelas": []}
-    for r in _TABELAS_POR_PASSO.get(passo, []):
+    ch = passos.chave(passo)
+    ctx: dict = {"passo": passo, "chave": ch, "passos": passos.ROTULOS,
+                 "ano": ciclo.data_inicio.year, "ciclo": ciclo, "erro": erro, "tabelas": []}
+    for r in _TABELAS_POR_PASSO.get(ch, []):
         d = dados_tabela(db, r)
         titulo, sub, novo, _del = META[r]
         ctx["tabelas"].append({**d, "titulo": titulo, "sub": sub, "novo_label": novo})
-    if passo == 3:
-        # 3a — Áreas (simples + compostas); 3b — Locais + resumo de slots.
+    if ch == "oferta":
+        # 6a — Áreas (simples + compostas); 6b — Locais + resumo de slots + validador + análise.
         ctx.update(ctx_areas(db))
-        ctx.update(ctx_locais(db))
-    if passo == 7:
+        ctx.update(ctx_locais(db, ciclo))
+    if ch == "alunos":
         ctx.update(dados_alunos(db))
-    if passo == 5:
+    if ch == "campo":
         ctx["locais"] = local_service.listar(db)
         ctx["docentes"] = docente_service.listar(db, incluir_inativos=False)
         ctx["preceptores"] = preceptor_service.listar(db, incluir_inativos=False)
         ctx["areas_map"] = {a.id: a for a in area_service.listar(db)}
-    if passo == 9:
+    if ch == "montagem":
         from app.routers.ui.montagem_dados import montar_montagem
         ctx.update(montar_montagem(db, ciclo))
-    if passo == 10:
+    if ch == "revisao":
         from app.routers.ui.montagem_dados import montar_revisao
         ctx.update(montar_revisao(db, ciclo))
     return ctx
@@ -171,14 +210,76 @@ def wizard(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/bootstrap/passo3a")
 def bootstrap_passo3a(request: Request, db: Session = Depends(get_db)):
-    """Re-render reativo da etapa 3a (áreas) — disparado por `recarregar-areas`."""
+    """Re-render reativo da seção de áreas — disparado por `recarregar-areas`."""
     return templates.TemplateResponse(request, "partials/passo3a.html", ctx_areas(db))
 
 
 @router.get("/bootstrap/passo3b")
 def bootstrap_passo3b(request: Request, db: Session = Depends(get_db)):
-    """Re-render reativo da etapa 3b (locais + slots) — disparado por `recarregar-locais`."""
+    """Re-render reativo da seção de locais (tabela + slots + validador + análise) —
+    disparado por `recarregar-locais`."""
     return templates.TemplateResponse(request, "partials/passo3b.html", ctx_locais(db))
+
+
+# ============================ Validador de locais ============================
+def _render_validador(request: Request, db: Session, toast: dict | None = None):
+    """Só o bloco do validador (a tabela de locais e a análise não precisam recarregar)."""
+    ciclo = common.exigir_ciclo_ativo(db)
+    resp = templates.TemplateResponse(request, "partials/validador_locais.html",
+                                      analise_grade.analise_oferta(db, ciclo))
+    if toast:
+        import json
+        resp.headers["HX-Trigger"] = json.dumps({"toast": toast})
+    return resp
+
+
+@router.get("/bootstrap/validacao")
+def validacao(request: Request, db: Session = Depends(get_db)):
+    return _render_validador(request, db)
+
+
+@router.post("/bootstrap/validacao/local/{local_id}/encontros")
+async def validacao_encontros(local_id: int, request: Request, db: Session = Depends(get_db)):
+    """Ajuste do nº de encontros direto no validador — sem voltar passos, sem gerar escala.
+
+    Vale para o caso do espelho: o campo pede 40 encontros mas o ciclo só tem 37 datas
+    viáveis; a comissão baixa para 37 e o slot volta a fechar grupo.
+    """
+    form = await request.form()
+    bruto = (form.get("numero_encontros") or "").strip()
+    try:
+        n = int(bruto)
+    except ValueError:
+        return _render_validador(request, db,
+                                 {"msg": "Informe um número de encontros válido.", "tipo": "error"})
+    try:
+        local_service.atualizar(db, local_id, LocalUpdate(numero_encontros=n))
+    except (DomainError, ValidationError) as exc:
+        msg = exc.mensagem if isinstance(exc, DomainError) else "Nº de encontros deve ser maior que zero."
+        return _render_validador(request, db, {"msg": msg, "tipo": "error"})
+    return _render_validador(request, db, {"msg": f"Nº de encontros salvo ({n}).", "tipo": "success"})
+
+
+@router.post("/bootstrap/validacao/local/{local_id}/passagem")
+def validacao_passagem(local_id: int, request: Request, db: Session = Depends(get_db)):
+    """Alterna a passagem de grupo pelo validador — muda o passo entre ondas (§4), então
+    pode fazer caber mais grupos no mesmo slot."""
+    local = local_service.obter(db, local_id)
+    local_service.atualizar(db, local_id, LocalUpdate(passagem_grupo=not local.passagem_grupo))
+    return _render_validador(request, db, {"msg": "Passagem de grupo atualizada.", "tipo": "success"})
+
+
+@router.get("/bootstrap/fecha-ciclo")
+def bootstrap_fecha_ciclo(request: Request, db: Session = Depends(get_db)):
+    """"Todos conseguem fazer o ciclo?" — verificação exata por aluno, SOB DEMANDA.
+
+    Não entra no render normal do wizard: é uma busca por aluno (segundos no molde real),
+    e a comissão pede quando quer conferir. Roda só a Fase 1 do motor, não persiste nada.
+    """
+    ciclo = common.exigir_ciclo_ativo(db)
+    return templates.TemplateResponse(request, "partials/fecha_ciclo.html", {
+        "fecha_ciclo": analise_grade.fecha_o_ciclo(db, ciclo),
+    })
 
 
 @router.post("/bootstrap/passo/{n}")
@@ -210,6 +311,25 @@ def _render_montagem(request: Request, db: Session, ciclo: Ciclo, toast: dict | 
         import json
         resp.headers["HX-Trigger"] = json.dumps({"toast": toast})
     return resp
+
+
+@router.get("/montagem/grade.pdf")
+def montagem_grade_pdf(db: Session = Depends(get_db)) -> Response:
+    """A grade das ondas por área em PDF, para levar impressa à reunião de prioridades.
+
+    Vive no router do bootstrap (e não em `ui/exportacao.py`) porque a Montagem acontece com
+    o ciclo em `rascunho` — o outro router exige `em_andamento` e redirecionaria o download.
+    """
+    from urllib.parse import quote
+
+    from app.services import exportacao
+    ciclo = common.exigir_ciclo_ativo(db)
+    conteudo = exportacao.montagem_pdf(db, ciclo)
+    nome = f"montagem_ondas_{ciclo.data_inicio.year}.pdf"
+    return Response(content=conteudo, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename={nome}; "
+                               f"filename*=UTF-8''{quote(nome)}",
+    })
 
 
 @router.post("/montagem/colocar")

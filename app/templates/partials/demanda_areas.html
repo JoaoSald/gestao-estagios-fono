@@ -1,0 +1,44 @@
+{% import "_macros.html" as ui %}
+{# ---- T4 · capacidade × demanda por área. Aparece no passo Alunos e na Revisão.
+     É a tabela que ANTECIPA a fila: saldo negativo = matrículas que vão sobrar, sabido
+     antes de gerar a escala. Conta matrículas em andamento (a mesma base do motor) e
+     vagas REAIS (grupos que fecham × alunos por grupo) — slot que não fecha grupo vale 0.
+     Contexto: `demanda` (lista de linhas). ---- #}
+{% if demanda %}
+{% set faltantes = demanda|selectattr('saldo', 'lt', 0)|list %}
+<div class="card" style="margin-top:1rem"><div class="card-head"><div>
+  <h3>Vagas × matrículas por área</h3>
+  <div class="card-sub">
+    {% if faltantes %}
+      {{ faltantes|sum(attribute='saldo')|abs }} matrícula(s) sem vaga se a oferta continuar assim —
+      resolva agora (mais um dia de campo, capacidade maior ou menos encontros) em vez de descobrir na geração.
+    {% else %}
+      A oferta cobre todas as matrículas em andamento.
+    {% endif %}
+  </div></div></div>
+  <div class="card-body">
+    <div class="tbl-wrap scroll-x scroll-y" style="max-height:40vh"><table class="tbl tbl-diag">
+      <thead><tr>
+        <th>Área</th><th class="num">Matrículas</th><th class="num">Slots</th>
+        <th class="num">Grupos</th><th class="num">Vagas</th><th class="num">Saldo</th>
+      </tr></thead>
+      <tbody>
+      {% for r in demanda %}
+        <tr style="--area:{{ r.cor or 'var(--border-2)' }}">
+          <td class="area-cell">{{ ui.area_pill(r.nome, r.cor) }}</td>
+          <td class="num">{{ r.demanda }}</td>
+          <td class="num">{{ r.slots }}{% if r.sem_grupo %}
+            <span class="badge b-falha" style="font-size:.66rem" title="Slots ativos que não fecham nenhum grupo — capacidade perdida. Ajuste no validador de locais.">{{ r.sem_grupo }} sem grupo</span>{% endif %}</td>
+          <td class="num">{{ r.ondas }}</td>
+          <td class="num">{{ r.vagas }}</td>
+          <td class="num"><span class="saldo {{ 'neg' if r.saldo < 0 else 'ok' }}">{{ '+' if r.saldo > 0 }}{{ r.saldo }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody></table></div>
+    <div class="hint">Vagas = grupos que realmente fecham × alunos por grupo. Um aluno ocupa
+      uma vaga por área, então saldo negativo é fila (vai para o próximo ciclo).
+      <b>Esta conta é só de capacidade</b>: ela não vê conflito de horário, então saldo
+      positivo em todas as áreas não garante que todos concluam — quem responde isso é o
+      botão de verificação do ciclo, que roda o motor de verdade.</div>
+  </div></div>
+{% endif %}

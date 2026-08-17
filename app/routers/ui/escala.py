@@ -1,8 +1,12 @@
-"""Estágios (SÓ visualização, 3 abas) + ações de operação (§8.5) e Remanejar (§7.3).
+"""Ações de operação sobre a escala (§8.5) e Remanejar (§7.3) — SÓ COORDENAÇÃO.
 
 Nenhuma geração aqui: gerar é no bootstrap; o Remanejar aplica o reajuste PONTUAL das
 pendências de infraestrutura (revisar impacto → aplicar só o afetado), nunca regera o
 ciclo. Espelha estagios.js.
+
+A *visualização* das 3 abas mora em `consulta.py` (leitura, sem gate de coordenação) e
+reaproveita daqui `_ctx_conteudo`/`_cal_campo` — a montagem do contexto continua tendo
+uma única versão.
 """
 from __future__ import annotations
 
@@ -16,12 +20,12 @@ from app.core.database import get_db
 from app.core.templates import templates
 from app.routers.ui import calendario as calmod
 from app.routers.ui import estagios_dados as ed
-from app.routers.ui.deps import exigir_operacao, exigir_sessao
+from app.routers.ui.deps import exigir_coordenacao, exigir_operacao
 from app.services import common
 from app.services.motor import ajuste
 
 router = APIRouter(prefix="/ui", tags=["ui-escala"],
-                   dependencies=[Depends(exigir_sessao), Depends(exigir_operacao)])
+                   dependencies=[Depends(exigir_coordenacao), Depends(exigir_operacao)])
 
 
 def _intervalo_meses(ciclo):
@@ -33,9 +37,12 @@ def _cal_campo(db, ciclo, campo, mes_ref):
     min_mes, max_mes = _intervalo_meses(ciclo)
     mes_ref = mes_ref or calmod.mes_inicial(min_mes, max_mes, date.today())
     chips = ed.chips_por_campo(db, ciclo, campo["local"])
+    legenda = None
+    if campo["local"].passagem_grupo:
+        legenda = [{"cor": "#f43f5e", "label": "⇄ passagem de grupo (último dia de um grupo = 1º do próximo)"}]
     return calmod.montar(mes_ref, chips, host_id="campo-cal",
                          nav_url=f"/ui/estagios/campo-cal?local={campo['local_sel']}",
-                         min_mes=min_mes, max_mes=max_mes, hoje=date.today())
+                         min_mes=min_mes, max_mes=max_mes, hoje=date.today(), legenda=legenda)
 
 
 def _ctx_conteudo(db: Session, vista: str, local: str | None, area: str | None,
@@ -43,7 +50,9 @@ def _ctx_conteudo(db: Session, vista: str, local: str | None, area: str | None,
     ciclo = common.exigir_ciclo_ativo(db)
     ctx: dict = {"vista": vista, "fase": fase, **ed.contexto_base(db)}
     if vista == "aluno":
-        ctx["por_aluno"] = ed.dados_por_aluno(db, ciclo, fase)
+        dados = ed.dados_por_aluno(db, ciclo, fase)
+        ctx["por_aluno"] = dados["linhas"]
+        ctx["totais_fase"] = dados["totais"]
     elif vista == "grupos":
         # area=None → dados_grupos pré-seleciona a 1ª área (item 9); "todas" mostra tudo.
         ctx["grupos"] = ed.dados_grupos(db, ciclo, area)
@@ -53,21 +62,6 @@ def _ctx_conteudo(db: Session, vista: str, local: str | None, area: str | None,
         if campo:
             ctx["cal"] = _cal_campo(db, ciclo, campo, mes)
     return ctx
-
-
-@router.get("/estagios/conteudo")
-def conteudo(request: Request, vista: str = "aluno", local: str | None = None,
-             area: str | None = None, mes: str | None = None, fase: str = "todos",
-             db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "partials/estagios_conteudo.html",
-                                      _ctx_conteudo(db, vista, local, area, mes, fase))
-
-
-@router.get("/estagios/campo-cal")
-def campo_cal(request: Request, local: int, mes: str | None = None, db: Session = Depends(get_db)):
-    ciclo = common.exigir_ciclo_ativo(db)
-    campo = ed.dados_por_campo(db, ciclo, local)
-    return templates.TemplateResponse(request, "partials/_cal.html", {"cal": _cal_campo(db, ciclo, campo, mes)})
 
 
 def ctx_remanejar(db: Session, ciclo) -> dict:
@@ -98,17 +92,6 @@ def remanejar_aplicar(request: Request, db: Session = Depends(get_db)):
     eventos_ciclo.aplicar_pendencias(db, ciclo)  # PONTUAL — não regera o ciclo (§7.3)
     resp = Response(status_code=204)
     resp.headers["HX-Redirect"] = "/ui/estagios"
-    return resp
-
-
-@router.post("/estagios/concluir-grupo")
-async def concluir_grupo(request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    local_id = int(form["local_id"])
-    n = ajuste.concluir_grupo(db, local_id)
-    resp = templates.TemplateResponse(request, "partials/estagios_conteudo.html",
-                                      _ctx_conteudo(db, "campo", str(local_id), None, None))
-    resp.headers["HX-Trigger"] = json.dumps({"toast": {"msg": f"Grupo concluído — {n} aluno(s), vagas liberadas.", "tipo": "success"}})
     return resp
 
 

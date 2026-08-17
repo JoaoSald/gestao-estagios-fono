@@ -87,7 +87,7 @@
             {% if ch.kind == 'ev' %}
               <span class="cal-ev" style="{% if ch.cor %}background:{{ ch.cor }}22;color:{{ ch.cor }};border:1px solid {{ ch.cor }}66{% endif %}" title="{{ ch.label }}">{{ ch.label }}</span>
             {% else %}
-              <span class="cal-sess" style="background:{{ ch.cor }}{{ ';opacity:.72' if ch.esmaece else '' }}{{ ';box-shadow:inset 0 0 0 1.5px rgba(244,63,94,.9)' if ch.contorno else '' }}" title="{{ ch.label }}">{{ ch.label }}</span>
+              <span class="cal-sess" style="background:{{ ch.cor }}{{ ';opacity:.72' if ch.esmaece else '' }}{{ ';box-shadow:inset 0 0 0 1.5px rgba(244,63,94,.9)' if ch.contorno else '' }}" title="{{ ch.label }}{% if ch.passagem %} · passagem de grupo (último dia deste grupo = 1º do próximo){% endif %}">{% if ch.passagem %}⇄ {% endif %}{{ ch.label }}</span>
             {% endif %}
           {% endfor %}
           {% if cel.mais %}<span class="cal-more">+{{ cel.mais }}</span>{% endif %}
@@ -127,9 +127,15 @@
 {%- endmacro %}
 
 {# Modal com formulário HTMX. O corpo (campos) vem via {% call %}.
-   estatico=true → clicar fora (backdrop) e Esc NÃO fecham (só X/Cancelar/Salvar). #}
-{% macro modal_form(titulo, action, metodo='post', erro='', target='#tbody', estatico=false) -%}
-<div class="modal-backdrop"{% if estatico %} data-static{% endif %}><div class="modal" role="dialog" aria-modal="true">
+
+   SEMPRE estático (`data-static`): fecha só no X, no Cancelar ou salvando. Clique fora e Esc
+   não fecham. Isto aqui é formulário — um clique de raspão no backdrop apagava tudo o que a
+   pessoa tinha digitado, sem aviso e sem desfazer. Era um `estatico=false` por padrão com
+   um único chamador passando `true` (o de aluno, corrigido primeiro), o que deixou o mesmo
+   bug em docente, preceptor, evento, afastamento, área, local e indisponibilidade — todos
+   formulários. Padrão invertido para o bug não voltar no próximo form que alguém escrever. #}
+{% macro modal_form(titulo, action, metodo='post', erro='', target='#tbody') -%}
+<div class="modal-backdrop" data-static><div class="modal" role="dialog" aria-modal="true">
   <div class="modal-head"><h3>{{ titulo }}</h3><button class="icon-btn" type="button" data-close>{{ icon('x') }}</button></div>
   <form hx-{{ metodo }}="{{ action }}" hx-target="{{ target }}" hx-swap="innerHTML">
     <div class="modal-body">

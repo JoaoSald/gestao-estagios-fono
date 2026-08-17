@@ -305,6 +305,89 @@ def grupos_pdf(db: Session, ciclo: Ciclo) -> bytes:
     return buf.getvalue()
 
 
+def montagem_pdf(db: Session, ciclo: Ciclo) -> bytes:
+    """PDF da GRADE DAS ONDAS por área — o mesmo board do passo Montagem, em papel.
+
+    Serve para a comissão levar o molde para a reunião (é ali que se decide quem é
+    prioridade) e para conferir a grade antes de gerar. É o molde, não a escala: sai antes
+    de Gerar, mostrando cada grupo com data de início/fim, ocupação e quem já foi PINADO à
+    mão — grupo vazio aparece como vazio, que é a informação útil na montagem.
+
+    Reusa `montar_montagem`, o mesmo builder que desenha a tela, para o papel não poder
+    divergir do que a comissão viu. Isso inclui `montagem.materializar` — que grava, mas é
+    idempotente e preserva os pins, e na prática já rodou no render do passo; o download não
+    cria nem apaga montagem nenhuma.
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import cm
+    from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table
+
+    from app.routers.ui.montagem_dados import montar_montagem
+
+    ctx = montar_montagem(db, ciclo)
+    ss = _estilos()
+    story = [
+        Paragraph("Montagem dos Grupos — grade das ondas por área", ss["TituloDoc"]),
+        Paragraph(f"Ciclo {ciclo.data_inicio.year} · molde antes da geração · "
+                  f"gerado em {date.today().strftime('%d/%m/%Y')}", ss["Sub"]),
+    ]
+
+    # Banco de prioridade: quem ainda não foi colocado à mão. Está no topo da tela e é o
+    # que a reunião discute, então vai no topo do papel também.
+    banco = ctx.get("banco") or []
+    if banco:
+        nomes = " · ".join(f"{a['nome']} ({a['ch_semanal']}h/sem)" for a in banco)
+        story.append(Paragraph(f"<b>Banco de prioridade ({len(banco)}):</b> {nomes}", ss["Cel"]))
+        story.append(Spacer(1, 8))
+
+    # As mesmas duas seções da tela (mini-ciclo do 7º × 9º/10º), na mesma ordem.
+    secoes = [("7", "7º semestre — mini-ciclo (Audiologia I)"),
+              ("9_10", "9º/10º semestre — demais estágios")]
+    areas_todas = ctx.get("montagem_areas") or []
+    if not areas_todas:
+        story.append(Paragraph("Sem molde — cadastre locais e datas nos passos anteriores.",
+                               ss["Normal"]))
+    for fase, titulo in secoes:
+        areas = [a for a in areas_todas if a["fase"] == fase]
+        if not areas:
+            continue
+        story.append(Paragraph(titulo, ss["Area"]))
+        for area in areas:
+            cor = _cor(area["cor"])
+            bloco = [Paragraph(
+                f'<font color="{area["cor"] or "#64748b"}">■</font> {area["nome"]}', ss["Local"])]
+            for s in area["slots"]:
+                cab = f"<b>{s['campo']}</b>"
+                if s["unidade"]:
+                    cab += f' · {s["unidade"]}'
+                cab += (f' · {s["dia"]} · {s["turno"]} · {s["hora_inicio"]}–{s["hora_fim"]}'
+                        f' · {s["enc"]} enc × {s["horas"]}h')
+                linhas = [["Onda", "Início", "Fim", "Ocup.", "Alunos montados"]]
+                for cx in s["caixas"]:
+                    montados = ", ".join(m["nome"] for m in cx["membros"])
+                    linhas.append([
+                        f"Onda {cx['onda']}",
+                        _ddmmaaaa(cx["data_inicio"]), _ddmmaaaa(cx["data_fim"]),
+                        f"{cx['ocupacao']}/{cx['cap']}",
+                        Paragraph(montados, ss["Cel"]) if montados else "(vazio)",
+                    ])
+                t = Table(linhas, colWidths=[2*cm, 2.4*cm, 2.4*cm, 1.6*cm, 18.6*cm],
+                          repeatRows=1)
+                t.setStyle(_estilo_tabela(cor))
+                bloco += [Paragraph(cab, ss["Cel"]), t, Spacer(1, 6)]
+            # KeepTogether por ÁREA: o cabeçalho da área quebrando sozinho no fim da página
+            # deixava a grade órfã do nome dela — em papel isso é ilegível.
+            story.append(KeepTogether(bloco))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=1.2*cm, rightMargin=1.2*cm,
+                            topMargin=1.2*cm, bottomMargin=1.2*cm,
+                            title=f"Montagem {ciclo.data_inicio.year}")
+    doc.build(story)
+    return buf.getvalue()
+
+
 def calendario_aluno_pdf(db: Session, aluno_id: int) -> tuple[str, bytes]:
     """PDF do calendário do aluno: progresso por área + lista de encontros por data."""
     from reportlab.lib.pagesizes import A4

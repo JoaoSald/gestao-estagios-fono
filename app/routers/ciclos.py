@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.core.errors import NaoEncontrado
 from app.schemas.ciclo import CicloCreate, CicloEncerrar, CicloOut, EstadoInicial
 from app.services import ciclo as service
 
-router = APIRouter(prefix="/ciclos", tags=["ciclos"])
+router = APIRouter(prefix="/ciclos", tags=["ciclos"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("/estado", response_model=EstadoInicial)

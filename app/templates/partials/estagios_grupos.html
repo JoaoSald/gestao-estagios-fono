@@ -18,7 +18,7 @@
   {% for l in area.locais %}
     <div class="card" style="margin-bottom:.7rem"><div class="card-head"><div>
       <b>{{ l.campo }}</b>{% if l.unidade %} <span class="dim">· {{ l.unidade }}</span>{% endif %}
-      <div class="hint">{{ l.dia }} · {{ l.turno }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }} · cap. {{ l.cap }} · {{ l.numero_encontros }} encontros</div>
+      <div class="hint">{{ l.dia }} · {{ l.turno }} · {{ l.hora_inicio.strftime('%H:%M') }}–{{ l.hora_fim.strftime('%H:%M') }} · cap. {{ l.cap }} · {{ l.numero_encontros }} encontros{% if l.passagem_grupo %} · <span class="badge b-iniciar" title="Passagem de grupo: o último encontro de um grupo é o 1º do próximo (1 dia de sobreposição)">{{ ui.icon('shuffle') }} passagem de grupo</span>{% endif %}</div>
     </div></div><div class="card-body" style="padding-top:.5rem">
       {% for g in l.ondas %}
         <div style="margin-bottom:.5rem">
@@ -27,14 +27,14 @@
               <span style="font-size:.78rem;font-weight:700;margin-left:.15rem;color:{{ 'var(--st-concluida)' if g.cheia else 'var(--st-aguardando)' }}">{{ g.ocup }}/{{ g.cap }}</span>
               {% if g.previsto %}<span class="badge b-aguardando"><span class="dt"></span>na fila</span>{% else %}<span class="badge b-andamento"><span class="dt"></span>em andamento</span>{% endif %}
             </div>
-            <span class="dim" style="font-size:.8rem">{{ g.data_inicio.strftime('%d/%m/%Y') }} → {{ g.data_fim.strftime('%d/%m/%Y') }}</span>
+            <span class="dim" style="font-size:.8rem">{% if g.passagem_inicio %}<span style="color:#f43f5e;font-weight:700" title="Dia de passagem — 1º encontro compartilhado com o grupo anterior">⇄ </span>{% endif %}{{ g.data_inicio.strftime('%d/%m/%Y') }} → {{ g.data_fim.strftime('%d/%m/%Y') }}{% if g.passagem_fim %}<span style="color:#f43f5e;font-weight:700" title="Dia de passagem — último encontro compartilhado com o próximo grupo"> ⇄</span>{% endif %}</span>
           </div>
           {% for m in g.membros %}
             <div class="roster-item"><span class="roster-dot" style="background:{{ area.cor or '#64748b' }}"></span>
               <div style="flex:1;min-width:0"><div class="rn">{{ m.nome }}{% if m.ordenamento %} <span class="dim">· {{ m.ordenamento }}º</span>{% endif %}
                 {% if m.fixado %}<span class="badge b-iniciar" title="Posicionado à mão">{{ ui.icon('user') }} montado</span>{% else %}<span class="dim" style="font-size:.72rem">auto</span>{% endif %}
                 {% if m.aviso %}<span class="badge b-risco" title="{{ m.aviso }}">{{ ui.icon('alert') }} {{ m.aviso }}</span>{% endif %}</div></div>
-              {% if l.ondas|length > 1 %}
+              {% if pode_editar and l.ondas|length > 1 %}
               <div class="row-actions">
                 <button class="icon-btn btn-sm" title="Mover este aluno para outra leva (grupo)"
                   hx-get="/ui/estagios/mover-onda-modal?aluno={{ m.aluno_id }}&local={{ l.local_id }}&area={{ grupos.area_sel }}"

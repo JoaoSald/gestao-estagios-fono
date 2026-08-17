@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.schemas.aluno import (
     AlunoCreate, AlunoDetalhe, AlunoOut, AlunoUpdate, MatriculaOut,
     MatriculasSync, RestricoesSync,
@@ -17,7 +18,8 @@ from app.services import desmatricula as desmatricula_service
 class InterromperBody(BaseModel):
     motivo: str | None = None
 
-router = APIRouter(prefix="/alunos", tags=["alunos"])
+router = APIRouter(prefix="/alunos", tags=["alunos"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("", response_model=list[AlunoOut])

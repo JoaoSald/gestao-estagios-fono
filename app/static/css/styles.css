@@ -21,6 +21,12 @@
   --st-andamento: #0284c7;
   --st-concluida: #16a34a;
   --st-risco:     #d97706;
+  /* Faltavam: `pill_estado` e as telas de revisão já referenciavam estes nomes, então a
+     cor caía em branco silenciosamente. `--st-falha` é o vermelho de "não fecha" usado
+     pelo validador de locais. */
+  --st-aguardando:   #8b5cf6;
+  --st-interrompida: #64748b;
+  --st-falha:        #ef4444;
 
   --sidebar-w: 264px;
   --radius: 14px;
@@ -279,7 +285,16 @@ h1,h2,h3,h4 { margin: 0; font-weight: 700; letter-spacing: -.01em; }
 .b-concluida .dt{ background: var(--st-concluida); }
 .b-risco     { background: color-mix(in srgb,var(--st-risco) 20%,transparent);     color: #fbbf24; }
 .b-risco .dt { background: var(--st-risco); }
+.b-aguardando{ background: color-mix(in srgb,var(--st-aguardando) 18%,transparent); color: #c4b5fd; }
+.b-aguardando .dt{ background: var(--st-aguardando); }
+.b-falha     { background: color-mix(in srgb,var(--st-falha) 18%,transparent);      color: #fca5a5; }
+.b-falha .dt { background: var(--st-falha); }
 .b-neutral   { background: var(--surface-2); color: var(--text-2); border-color: var(--border); }
+:root[data-theme="light"] .b-andamento { color: #0369a1; }
+:root[data-theme="light"] .b-concluida { color: #15803d; }
+:root[data-theme="light"] .b-risco     { color: #b45309; }
+:root[data-theme="light"] .b-aguardando{ color: #6d28d9; }
+:root[data-theme="light"] .b-falha     { color: #b91c1c; }
 .area-pill { display:inline-flex; align-items:center; gap:.35rem; padding:.14rem .55rem; border-radius:8px;
   font-size:.72rem; font-weight:600; }
 .area-pill .dt { width:7px;height:7px;border-radius:2px; }
@@ -381,7 +396,18 @@ h1,h2,h3,h4 { margin: 0; font-weight: 700; letter-spacing: -.01em; }
 .banner-remanejo .btxt { flex: 1; }
 .banner-remanejo .btxt b { display: block; font-size: .95rem; }
 .banner-remanejo .btxt span { font-size: .8rem; color: var(--text-2); }
-.banner-remanejo .bacts { display: flex; gap: .5rem; }
+.banner-remanejo .bacts { display: flex; gap: .5rem; align-items: center; }
+/* Variante INFORMATIVA (§9): sinaliza risco, não pede ação corretiva — sem o âmbar de
+   pendência e sem o pulso, que reservamos para "há mudanças a revisar". */
+.banner-remanejo.info {
+  background: linear-gradient(100deg, color-mix(in srgb,var(--st-aguardando) 16%,var(--surface)), var(--surface));
+  border-color: color-mix(in srgb,var(--st-aguardando) 40%,transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb,var(--st-aguardando) 18%,transparent), 0 10px 30px -14px color-mix(in srgb,var(--st-aguardando) 50%,transparent);
+}
+.banner-remanejo.info .bico {
+  background: color-mix(in srgb,var(--st-aguardando) 22%,transparent);
+  color: var(--st-aguardando); animation: none;
+}
 
 /* Timeline / atividade */
 .timeline { position: relative; }
@@ -616,3 +642,72 @@ h1,h2,h3,h4 { margin: 0; font-weight: 700; letter-spacing: -.01em; }
   .login-aside { display: none; }
   .login-brand-mobile { display: flex; align-items: center; gap: .625rem; }
 }
+
+/* ==========================================================================
+   Diagnóstico da oferta — validador de locais + análise da grade (passo
+   "Áreas e Locais"). A cor da ÁREA é o fio condutor: a mesma pílula/cor que
+   aparece nos grupos e no resumo de slots marca a borda de cada linha, para
+   a leitura ser "área → local" em qualquer tela.
+   ========================================================================== */
+.diag-sec { margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--border); }
+.diag-head { display: flex; align-items: center; justify-content: space-between;
+  gap: .6rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.diag-title { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: .92rem; }
+.diag-sub { font-size: .76rem; color: var(--text-3); margin: -.25rem 0 .55rem; }
+
+/* Linha com a cor da área na borda esquerda (validador e locais sem grupo) */
+.arow { border: 1px solid var(--border); border-left: 3px solid var(--area, var(--border-2));
+  border-radius: 10px; background: var(--surface); padding: .55rem .7rem; }
+.arow + .arow { margin-top: .4rem; }
+.arow.st-falha   { border-color: color-mix(in srgb,var(--st-falha) 38%,var(--border)); }
+.arow.st-atencao { border-color: color-mix(in srgb,var(--st-risco) 34%,var(--border)); }
+.arow-top { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.arow-when { font-size: .76rem; color: var(--text-2); }
+.arow-why { font-size: .76rem; color: var(--text-3); margin-top: .3rem; }
+
+/* Tabela do validador: números grandes e alinhados, edição inline */
+.tbl-diag td, .tbl-diag th { padding: .55rem .7rem; }
+.tbl-diag .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.tbl-diag .area-cell { border-left: 3px solid var(--area, var(--border-2)); }
+.inp-enc { width: 5.2rem; padding: .3rem .45rem; text-align: right;
+  font-variant-numeric: tabular-nums; }
+.btn-sug { padding: .18rem .45rem; font-size: .72rem; border-radius: 7px; cursor: pointer;
+  background: color-mix(in srgb,var(--primary) 14%,transparent); color: var(--primary);
+  border: 1px solid color-mix(in srgb,var(--primary) 34%,transparent); white-space: nowrap; }
+.btn-sug:hover { background: color-mix(in srgb,var(--primary) 24%,transparent); }
+
+/* Régua de horas por dia (T1b) — um bloco colorido por estágio; blocos na mesma
+   coluna vertical são o conflito, visto de relance. */
+.tl { display: grid; grid-template-columns: 5.2rem 1fr; gap: .35rem .5rem; align-items: start; }
+.tl-eixo { position: relative; height: 1.1rem; font-size: .66rem; color: var(--text-3); }
+.tl-eixo span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.tl-dia { font-weight: 700; font-size: .8rem; color: var(--text-2); padding-top: .18rem;
+  white-space: nowrap; }
+.tl-faixa { position: relative; background:
+    repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px var(--tl-passo, 8.33%));
+  border: 1px solid var(--border); border-radius: 8px; padding: 3px; overflow: hidden; }
+.tl-pista { position: relative; height: 1.45rem; }
+.tl-pista + .tl-pista { margin-top: 3px; }
+.tl-bloco { position: absolute; top: 0; height: 100%; border-radius: 5px; overflow: hidden;
+  display: flex; align-items: center; padding: 0 .4rem; font-size: .68rem; font-weight: 600;
+  color: #fff; white-space: nowrap; text-overflow: ellipsis; cursor: default;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.tl-bloco.conflita { box-shadow: inset 0 0 0 1.5px var(--st-falha); }
+
+/* Disputas: N estágios brigando pela mesma janela do dia */
+.disputa { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  border: 1px solid color-mix(in srgb,var(--st-risco) 30%,var(--border));
+  background: color-mix(in srgb,var(--st-risco) 7%,transparent);
+  border-radius: 9px; padding: .4rem .6rem; font-size: .78rem; }
+.disputa + .disputa { margin-top: .35rem; }
+.disputa .qt { font-weight: 800; font-size: .95rem; color: var(--st-risco); }
+
+/* Barra de saldo (T4 — capacidade × demanda) */
+.saldo { font-variant-numeric: tabular-nums; font-weight: 800; }
+.saldo.neg { color: var(--st-falha); }
+.saldo.ok { color: var(--st-concluida); }
+
+/* Aviso "duro" (algo não fecha) — usado no diagnóstico da oferta */
+.aviso-duro { border: 1px solid color-mix(in srgb, var(--st-falha) 45%, transparent);
+  border-left: 4px solid var(--st-falha); border-radius: 10px; padding: .7rem .9rem;
+  background: color-mix(in srgb, var(--st-falha) 8%, var(--surface)); }

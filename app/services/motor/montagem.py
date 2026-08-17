@@ -68,7 +68,7 @@ def colocar(db: Session, aluno_id: int, grupo_id: int) -> ResultadoAjuste:
     mv = estado.carregar_molde_vivo(db, aluno.ciclo, ctx)
     caixa = mv.caixas.get(grupo_id)
     if caixa is None:
-        raise DomainError("Caixa não encontrada. Materialize o molde antes.")
+        raise DomainError("Grupo não encontrado. Materialize o molde antes.")
 
     mat = estado.matricula_de(db, aluno_id, caixa.area_id)
     if mat is None or mat.status != StatusMatricula.em_andamento:
@@ -87,7 +87,7 @@ def colocar(db: Session, aluno_id: int, grupo_id: int) -> ResultadoAjuste:
     bloq = _bloqueados(db, aluno_id)
     motivos: list[str] = []
     if not caixa.tem_vaga():
-        motivos.append(f"caixa cheia ({len(caixa.ocupantes)}/{caixa.capacidade})")
+        motivos.append(f"grupo cheio ({len(caixa.ocupantes)}/{caixa.capacidade})")
     m = viola_restricoes(comp, caixa, bloq)
     if m:
         motivos.append(m)

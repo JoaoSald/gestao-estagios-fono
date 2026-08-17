@@ -15,10 +15,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/styles.css" />
+  {# `estatico()` põe ?v=<mtime> — sem isso, CSS/JS novo não chega a um navegador que já
+     abriu a página (o HTMX troca só o HTML e nunca re-busca a folha de estilo). #}
+  <link rel="stylesheet" href="{{ estatico('css/styles.css') }}" />
 
-  <script src="/static/js/htmx.min.js" defer></script>
-  <script src="/static/js/app.js" defer></script>
+  <script src="{{ estatico('js/htmx.min.js') }}" defer></script>
+  <script src="{{ estatico('js/app.js') }}" defer></script>
 </head>
 <body>
   {% block body %}{% endblock %}

@@ -114,6 +114,36 @@ def atualizar_conclusoes(db: Session, ciclo: Ciclo, hoje: date | None = None) ->
     db.flush()
 
 
+def reverter_conclusoes_de_rascunho(db: Session, ciclo: Ciclo) -> int:
+    """No bootstrap, desfaz conclusões DERIVADAS por data. Devolve quantas reverteu.
+
+    Em `rascunho` o ciclo ainda não começou: a escala é uma sugestão e nenhuma sessão
+    aconteceu de verdade. Se a data de hoje já passou do início do ciclo (comum ao montar
+    o ano com o calendário em andamento), `atualizar_conclusoes` marcaria as sessões
+    "passadas" como cumpridas e fecharia matrículas — que então sairiam do filtro
+    `em_andamento` de `escala._mapear_matriculas` e **sumiriam da próxima geração**.
+
+    `concluida`/`incompleta` só são atribuídas pelo caminho derivado
+    (`atualizar_conclusao_matricula`) — não há marcação manual desses status — então, em
+    rascunho, encontrá-las significa resíduo desse efeito e é seguro devolvê-las para
+    `em_andamento`. `interrompida` é decisão humana (desmatrícula) e fica intocada.
+    """
+    from app.models.enums import StatusCiclo
+    if ciclo.status != StatusCiclo.rascunho:
+        return 0
+    matriculas = db.scalars(
+        select(Matricula).join(Aluno, Matricula.aluno_id == Aluno.id)
+        .where(Aluno.ciclo_id == ciclo.id,
+               Matricula.status.in_((StatusMatricula.concluida, StatusMatricula.incompleta)))
+    ).all()
+    for m in matriculas:
+        m.status = StatusMatricula.em_andamento
+        m.data_conclusao = None
+    if matriculas:
+        db.flush()
+    return len(matriculas)
+
+
 def sincronizar_tempo(db: Session, ciclo: Ciclo, hoje: date | None = None) -> None:
     """Reflete "o tempo passando" (§7/§8.5) — automático, por data, SEM banner.
 

@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.routers.acesso import exigir_coordenacao
 from app.schemas.afastamento import AfastamentoCreate, AfastamentoOut
 from app.services import afastamento as service
 
-router = APIRouter(prefix="/afastamentos", tags=["afastamentos"])
+router = APIRouter(prefix="/afastamentos", tags=["afastamentos"],
+                   dependencies=[Depends(exigir_coordenacao)])
 
 
 @router.get("", response_model=list[AfastamentoOut])

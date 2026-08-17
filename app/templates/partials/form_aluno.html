@@ -2,7 +2,7 @@
 {% set edit = obj is not none %}
 {% call ui.modal_form(('Editar' if edit else 'Novo') ~ ' aluno',
        '/ui/alunos/' ~ obj.id if edit else '/ui/alunos',
-       'put' if edit else 'post', erro, target='#alunos-conteudo', estatico=true) %}
+       'put' if edit else 'post', erro, target='#alunos-conteudo') %}
   <div class="grid g-2">
     {{ ui.campo('Nome', 'nome', obj.nome if edit else '', required=true) }}
     {{ ui.campo('Matrícula', 'matricula', obj.matricula if edit else '', required=true) }}
@@ -22,7 +22,7 @@
   {% elif edit and obj.prioridade %}<input type="hidden" name="prioridade" value="on">{% endif %}
 
   <div class="field"><label>Matrículas iniciais por área</label>
-    <p class="hint">Marque só os estágios que este aluno vai fazer NESTE ciclo. As demais não entram (não viram pendência) — se faltar, é só matricular depois. As áreas fora da fase do semestre ficam desabilitadas.</p>
+    <p class="hint">Já vêm marcados todos os estágios da fase do semestre. <b>Desmarque</b> os que este aluno NÃO vai fazer NESTE ciclo — os desmarcados não entram (não viram pendência) e podem ser matriculados depois. As áreas fora da fase do semestre ficam desabilitadas.</p>
     <div id="matriculas-check">{% include 'partials/alunos_matriculas_check.html' %}</div>
   </div>
 

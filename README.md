@@ -5,8 +5,9 @@ Sistema web para a **comissão de estágios da Fonoaudiologia da UFCSPA** planej
 fluxo em planilha Excel por um motor de escalonamento determinístico, com ajustes
 manuais validados e visualização para professores e alunos.
 
-- **Quem edita:** apenas a comissão (~5 coordenadores).
-- **Quem visualiza:** professores e alunos (somente leitura).
+- **Quem edita:** apenas a comissão (~5 coordenadores) — perfis `coordenacao`/`administrador`.
+- **Quem visualiza:** `docente` (escala + painel + histórico) e `aluno` (só a escala).
+  Nenhum dos dois cadastra ou edita nada; ver [Acesso e perfis](#acesso-e-perfis).
 
 ---
 
@@ -40,7 +41,10 @@ cp .env.example .env          # depois edite: DATABASE_URL + SECRET_KEY
 alembic upgrade head          # aplica as migrações
 python scripts/seed.py        # (re)carrega catálogos a partir de docs/seed_v2.sql
 
-# 4. Servidor de desenvolvimento
+# 4. Primeira conta de acesso (sem ela o sistema fica trancado — não há usuário no seed)
+python scripts/criar_usuario.py "Comissão de Estágios" coordenacao@ufcspa.edu.br coordenacao
+
+# 5. Servidor de desenvolvimento
 uvicorn app.main:app --reload # http://localhost:8000
 ```
 
@@ -53,10 +57,45 @@ uvicorn app.main:app --reload # http://localhost:8000
 ```env
 DATABASE_URL=postgresql+psycopg2://postgres:SUA_SENHA@localhost:5432/estagios_fono
 SECRET_KEY=troque-por-uma-chave-aleatoria-longa
+SESSAO_HORAS=12
 APP_ENV=dev
 ```
 
 `DATABASE_URL` não tem valor padrão — o app falha rápido se não estiver definida.
+`SECRET_KEY` assina o cookie de sessão: trocá-la derruba todas as sessões abertas.
+Com `APP_ENV=prod` o cookie vai como `secure` (exige HTTPS) e o CORS fecha.
+
+---
+
+## Acesso e perfis
+
+Quatro perfis (`app/models/enums.py::PerfilUsuario`), e **três alcances** de rota:
+
+| Alcance | Rotas | `administrador`/`coordenacao` | `docente` | `aluno` |
+|---|---|:--:|:--:|:--:|
+| Escrita + operação | cadastros, bootstrap, geração, ajustes, remanejar, **toda a API JSON** | ✅ | ❌ | ❌ |
+| Operação em leitura | `/ui/painel`, `/ui/historico` | ✅ | ✅ | ❌ |
+| A escala | `/ui/estagios` (3 abas), calendário do aluno, downloads | ✅ | ✅ | ✅ |
+
+Como isso é imposto, em três camadas:
+
+1. **Gate de rota** (`app/routers/acesso.py`) — `exigir_sessao` · `exigir_coordenacao` ·
+   `exigir_leitura_ampla`, declarados no `APIRouter` de cada módulo. É a proteção real.
+2. **Rede de segurança** (middleware em `main.py`) — perfil de leitura não executa
+   método de escrita em rota nenhuma, mesmo que alguma nasça no router errado.
+3. **Cortesia na tela** — `menu_de()` (`app/core/navegacao.py`) filtra a sidebar e
+   `pode_editar` esconde as ações. Não protege nada; só evita oferecer o que a rota recusa.
+
+Sessão = JWT assinado com `SECRET_KEY` num cookie `httponly`. `tests/test_autorizacao.py`
+varre `app.routes` e falha se alguma rota nascer sem gate — inclua a nova em
+`ROTAS_PUBLICAS` (com o motivo) se ela for realmente pública.
+
+Aluno e docente só veem o ciclo em `em_andamento`: em `rascunho` a escala está em edição e
+eles caem em `/ui/aguarde` ("ainda não publicada"), nunca no wizard da comissão.
+
+> Login por senha é o caminho de hoje. A FASE B troca a porta de entrada por **SSO
+> institucional** (o botão do Google no login está desabilitado até lá); a senha local
+> permanece como acesso de exceção da coordenação.
 
 ---
 
@@ -133,6 +172,7 @@ app/
 alembic/               # migrações (env.py lê DATABASE_URL do .env)
 docs/                  # REGRAS_MOTOR_ESCALA.md, seed_v2.sql, modelagem_dados/
 scripts/               # seed.py
+tests/                 # pytest (conftest, factories, testes do motor e da API/UI)
 ```
 
 ### Conceitos do domínio
@@ -166,5 +206,11 @@ alembic revision --autogenerate -m "descricao"         # nova migração
 - **`docs/modelagem_dados/`** — schema canônico (`modelagem_dados_v2.sql`, DBML e
   `DOCUMENTACAO_MODELO_DADOS_V2.md`).
 - **`docs/seed_v2.sql`** — seed fonte da verdade (derivado do ESPELHO 2026).
+- **`CLAUDE.md`** — guia de trabalho no repositório.
 
 ---
+
+## Idioma
+
+Domínio, comentários, docstrings, identificadores e UI são em **Português (pt-BR)**.
+Mensagens de erro exibidas ao usuário também.
