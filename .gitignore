@@ -1,7 +1,7 @@
 # Segredos / config local — NUNCA versionar
 .env
 teste.txt          # contas de teste do dev, com senha em texto puro
-
+contas.txt
 # Python
 __pycache__/
 *.py[cod]
