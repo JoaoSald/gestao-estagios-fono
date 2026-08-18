@@ -20,7 +20,7 @@ from app.models.enums import OrigemEvento, TipoEvento
 def feriados_do_periodo(inicio: date, fim: date) -> list[tuple[date, str]]:
     """(data, nome) de todos os feriados BR + RS entre `inicio` e `fim` (inclusive)."""
     anos = list(range(inicio.year, fim.year + 1))
-    br_rs = holidays.country_holidays("BR", subdiv="RS", years=anos)
+    br_rs = holidays.country_holidays("BR", subdiv="RS", years=anos, language="pt_BR")
     return sorted((d, nome) for d, nome in br_rs.items() if inicio <= d <= fim)
 
 
